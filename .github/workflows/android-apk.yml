@@ -29,6 +29,29 @@ jobs:
           mkdir -p android/app/src/main/assets
           cp index.html android/app/src/main/assets/index.html
 
+      # Optional: with the SUPABASE_URL and SUPABASE_ANON_KEY repository secrets the APK is built online;
+      # without them it is the offline version. See docs/SUPABASE.md.
+      - name: Add Supabase settings
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          url, key = os.environ.get('SUPABASE_URL', '').strip(), os.environ.get('SUPABASE_ANON_KEY', '').strip()
+          path = 'android/app/src/main/assets/index.html'
+          html = open(path, encoding='utf-8').read()
+          empty = '{"supabaseUrl":"","supabaseAnonKey":""}'
+          if not (url and key):
+              print('No Supabase secrets: building the offline version')
+          elif empty not in html:
+              print('index.html already has Supabase settings: keeping them')
+          else:
+              html = html.replace(empty, json.dumps({'supabaseUrl': url, 'supabaseAnonKey': key}))
+              open(path, 'w', encoding='utf-8').write(html)
+              print('Supabase settings added for', url)
+          EOF
+
       - name: Build debug APK
         working-directory: android
         run: gradle assembleDebug --no-daemon
