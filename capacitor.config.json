@@ -1,0 +1,16 @@
+{
+  "appId": "com.anaraa.neonduel",
+  "appName": "Neon Duel",
+  "webDir": "www",
+  "backgroundColor": "#070c1b",
+  "ios": {
+    "path": "ios",
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "allowsLinkPreview": false,
+    "preferredContentMode": "mobile"
+  },
+  "android": {
+    "path": "capacitor-android"
+  }
+}

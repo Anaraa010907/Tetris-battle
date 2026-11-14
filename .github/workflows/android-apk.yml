@@ -1,28 +1,36 @@
 name: Build Android APK
 
+# Debug APK for testing on your own phone. Run it by hand: Actions -> Build Android APK -> Run workflow.
+# For Google Play use "Build release AAB for Google Play" instead (docs/LAUNCH.md).
+
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v4
+      # Android Gradle Plugin 8.13 needs Gradle 8.13+ and JDK 17
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.13'
 
+      # compileSdk/targetSdk 36; build-tools 35.0.0 is AGP 8.13's default
       - name: Install Android platform and build tools
         run: |
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKM" --licenses > /dev/null || true
-          "$SDKM" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+          "$SDKM" "platforms;android-36" "build-tools;35.0.0" "platform-tools"
 
       - name: Copy game into Android assets
         run: |
@@ -56,7 +64,8 @@ jobs:
         working-directory: android
         run: gradle assembleDebug --no-daemon
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: neon-duel-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

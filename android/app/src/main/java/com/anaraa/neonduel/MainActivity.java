@@ -27,23 +27,27 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setAllowFileAccess(true);
+        // The page and everything it uses are inside index.html; file:///android_asset/ loads without
+        // file access, so keep the rest of the phone's files out of the WebView's reach.
+        settings.setAllowFileAccess(false);
         webView.setWebChromeClient(new WebChromeClient());
         webView.loadUrl("file:///android_asset/index.html");
 
-        // From Android 15 the app draws behind the system bars. Keep the game inside them.
+        // From Android 15 the app draws behind the system bars. Keep the game inside them, and above the
+        // keyboard while a name or email field is being typed in (adjustResize in the manifest).
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(BACKGROUND);
         root.addView(webView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        // (Older versions already lay the content out between the bars.)
+        // (Older versions already lay the content out between the bars and resize it for the keyboard.)
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
             root.setOnApplyWindowInsetsListener((View v, WindowInsets insets) -> {
-                android.graphics.Insets b = insets.getInsets(
-                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                android.graphics.Insets b = insets.getInsets(WindowInsets.Type.systemBars()
+                        | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
                 v.setPadding(b.left, b.top, b.right, b.bottom);
-                return insets;
+                // Handled here: the WebView must not add the same space a second time.
+                return WindowInsets.CONSUMED;
             });
         }
         setContentView(root);
@@ -55,7 +59,8 @@ public class MainActivity extends Activity {
                             | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
         }
 
-        // Android 16 no longer calls onBackPressed for apps that target it; use the back dispatcher there.
+        // Android 13+ (enableOnBackInvokedCallback in the manifest) delivers Back here; Android 16 no longer
+        // calls onBackPressed for apps that target it. Older versions use onBackPressed below.
         if (Build.VERSION.SDK_INT >= 33) {
             backCallback = this::handleBack;
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(

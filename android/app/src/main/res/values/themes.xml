@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The game's background colour (same as MainActivity.BACKGROUND and the page's body). -->
+    <color name="neon_background">#070C1B</color>
+
+    <!-- Dark window from the first frame, so the launch screen and the moment before the page loads
+         are not white or black but the game's own colour. -->
+    <style name="Theme.NeonDuel" parent="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/neon_background</item>
+    </style>
+</resources>

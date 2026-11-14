@@ -65,6 +65,19 @@
 
 GitHub-ийн **Actions → Build Android APK → Run workflow** дээр гараар ажиллуулна. Workflow `index.html`-ийг аппын assets руу хуулж, debug APK бүтээгээд artifact болгон хадгална.
 
+## Дэлгүүрт гаргах
+
+Алхам алхмаар заавар: **[docs/LAUNCH.md](docs/LAUNCH.md)** (Google Play, App Store, эх сурвалжтай).
+
+| Файл | Юу байгаа |
+| --- | --- |
+| `.github/workflows/android-release.yml` | Google Play-д илгээх гарын үсэгтэй AAB (**Actions → Build release AAB for Google Play**). Upload key-ийг дөрвөн GitHub secret-ээс уншина |
+| `docs/privacy/` | Нууцлалын бодлого ба бүртгэл устгах хуудас (GitHub Pages-ээр нийтэлнэ, placeholder-уудыг солих) |
+| `docs/store/listing.md` | Дэлгүүрийн нэр, тайлбар (монгол, англи), keyword, ангилал, зураг, icon-ы шаардлага |
+| `docs/IOS.md`, `package.json`, `capacitor.config.json`, `tools/prepare-web.mjs` | iPhone хувилбар (Capacitor 8, Mac + Xcode 26 хэрэгтэй) |
+
+Өөрөө хийх зүйлс: Play Console (25$, нэг удаа) ба Apple Developer (99$/жил) бүртгэл, upload key үүсгэж secret болгох, GitHub Pages асаах, холбоо барих имэйлээ хуудсуудад оруулах, 12+ туршигчтай 14 хоногийн хаалттай туршилт.
+
 ## Дараагийн алхам
 
 - Supabase project үүсгээд `docs/SUPABASE.md`-ийн дагуу холбож, хоёр утсаар онлайн rank тоглолтыг турших

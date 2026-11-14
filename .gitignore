@@ -1,0 +1,32 @@
+# Signing keys must never be committed (the release workflow reads the upload key from GitHub secrets)
+*.jks
+*.keystore
+*.p12
+*.pem
+*.b64
+*.mobileprovision
+
+# Android: local build output (the workflows copy index.html into assets at build time)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/
+.idea/
+*.iml
+
+# iOS / Capacitor (docs/IOS.md): packages and copied web files; ios/ itself is committed after `npx cap add ios`
+node_modules/
+www/
+ios/App/build/
+ios/App/Pods/
+ios/App/output/
+ios/App/App/public/
+ios/DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# Editors and systems
+.DS_Store
+Thumbs.db
+__pycache__/
