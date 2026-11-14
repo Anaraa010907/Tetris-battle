@@ -48,12 +48,18 @@
 
 | Файл | Юу байгаа |
 | --- | --- |
-| `index.html` | Тоглоом бүхэлдээ: HTML, CSS, JS, дуу, зураг |
+| `src/` | Тоглоомын эх код: `js/`, `css/`, `i18n/` (орчуулга), `body.html`, `assets/` (фонт, зураг, дуу) |
+| `tools/build.py` | `src/`-ээс `index.html`-ийг бүтээнэ (`--check` нь шинэчлэгдсэн эсэхийг шалгана) |
+| `index.html` | Бүтээгдсэн тоглоом (гараар засахгүй) |
 | `android/` | Тоглоомыг WebView-д ачаалдаг Android апп |
 | `.github/workflows/android-apk.yml` | Debug APK бүтээх workflow (Supabase secret байвал онлайн хувилбар) |
 | `supabase/migrations/` | Мэдээллийн сангийн бүтэц, RLS, серверийн функцүүд |
-| `supabase/tests/` | Migration-ийг энгийн Postgres дээр шалгах скрипт (`run_local.sh`), хоёр тоглогчийн онлайн тоглолтын туршилт (`e2e_online.py`) |
+| `supabase/tests/` | SQL тест, хоёр тоглогчийн онлайн тоглолтын туршилт |
+| `tests/` | Хөтөч дээрх тоглоомын тест (`game_test.py`), бүх тестийг ажиллуулах `run.sh` |
 | `docs/SUPABASE.md` | Supabase тохируулах заавар |
+| `CLAUDE.md` | Код дээр ажиллах дүрэм |
+
+Өөрчлөлт хийхдээ `src/` доторх файлыг засаад `python3 tools/build.py` ажиллуулж, `tests/run.sh`-ээр шалгана.
 
 ## Android APK
 

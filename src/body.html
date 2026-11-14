@@ -1,0 +1,196 @@
+<main id="root" data-game-root>
+  <div id="world">
+    <div id="loading">NEON DUEL<br>
+      <small>▰ ▰ ▰ ▰</small>
+    </div>
+    <button class="sound-toggle" id="sound" aria-label="Sound">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 5.6 19.4 3v3.4L8 9z"/>
+        <rect x="8" y="5.6" width="2.2" height="11.6"/>
+        <rect x="17.2" y="3" width="2.2" height="12"/>
+        <ellipse cx="6.6" cy="17.3" rx="3.3" ry="2.5" transform="rotate(-20 6.6 17.3)"/>
+        <ellipse cx="15.8" cy="15.1" rx="3.3" ry="2.5" transform="rotate(-20 15.8 15.1)"/>
+      </svg>
+    </button>
+    <header>
+      <b>NEON <i>DUEL</i>
+      </b>
+      <small id="headStatus">OFFLINE</small>
+    </header>
+    <section class="screen" id="title" data-screen="title">
+      <button id="language" aria-label="Language">EN</button>
+      <span class="pill">
+        <i>
+        </i>
+        <span data-t="arena">
+        </span>
+      </span>
+      <h1 class="sr">NEON DUEL</h1>
+      <p class="tag" data-t="tagline">
+      </p>
+      <div class="panel pcard">
+        <div>
+          <b id="profileName">NOMAD</b>
+          <div id="record">
+          </div>
+        </div>
+        <span id="rank">
+        </span>
+      </div>
+      <div class="seg" id="diff" role="radiogroup">
+        <button data-diff="0" role="radio" data-t="easy">
+        </button>
+        <button data-diff="1" role="radio" data-t="normal">
+        </button>
+        <button data-diff="2" role="radio" data-t="diffHard">
+        </button>
+      </div>
+      <button class="primary" data-action="start" id="start" data-t="start">
+      </button>
+      <div class="grid4">
+        <button id="tutorial">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M1.8 5.1c3.7-1 7.1-.6 9.5 1.3v13.5c-2.4-1.8-5.8-2.2-9.5-1.3z"/>
+            <path d="M22.2 5.1c-3.7-1-7.1-.6-9.5 1.3v13.5c2.4-1.8 5.8-2.2 9.5-1.3z"/>
+          </svg>
+          <span data-t="tutorial">
+          </span>
+        </button>
+        <button id="settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path fill-rule="evenodd" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/>
+          </svg>
+          <span data-t="settings">
+          </span>
+        </button>
+        <button id="shop">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="2.5" y="2.5" width="8.5" height="8.5" rx="1.6"/>
+            <rect x="13" y="2.5" width="8.5" height="8.5" rx="1.6" style="fill:#5b8dff"/>
+            <rect x="2.5" y="13" width="8.5" height="8.5" rx="1.6" style="fill:#5b8dff"/>
+            <rect x="13" y="13" width="8.5" height="8.5" rx="1.6"/>
+          </svg>
+          <span data-t="shop">
+          </span>
+        </button>
+        <button id="ranked" class="gold">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 3h10v2h3.5v3.2a4.3 4.3 0 0 1-3.9 4.3 5.1 5.1 0 0 1-3.4 2.6V18H16a1 1 0 0 1 1 1v2H7v-2a1 1 0 0 1 1-1h2.8v-2.9a5.1 5.1 0 0 1-3.4-2.6A4.3 4.3 0 0 1 3.5 8.2V5H7zm0 4H5.5v1.2A2.3 2.3 0 0 0 7 10.3zm10 0v3.3a2.3 2.3 0 0 0 1.5-2.1V7z"/>
+          </svg>
+          <span data-t="rankPlay">
+          </span>
+        </button>
+      </div>
+    </section>
+    <section class="screen" id="gameplay" data-screen="gameplay" hidden>
+      <div class="row spread" id="playbar">
+        <b id="time">0:00.0</b>
+        <div class="vsgroup">
+          <span class="badge" id="vs">VS NOVA</span>
+          <span id="series" hidden>
+          </span>
+        </div>
+        <button id="pause" data-action="pause">Ⅱ</button>
+      </div>
+      <div id="boards">
+        <canvas id="board" width="560" height="1120" data-action="gesture">
+        </canvas>
+        <div id="meter" class="gmeter" aria-hidden="true">
+          <i>
+          </i>
+          <i class="pend">
+          </i>
+        </div>
+        <aside id="sidebar">
+          <div class="side-top">
+            <div class="side-left">
+              <button id="holdBtn" data-action="hold">
+                <span class="muted" data-t="holdLabel">
+                </span>
+                <canvas id="hold" width="116" height="68">
+                </canvas>
+              </button>
+              <div id="pstats">
+                <div>
+                  <span>PPS</span>
+                  <b id="sPps">0.00</b>
+                </div>
+                <div>
+                  <span>APM</span>
+                  <b id="sApm">0.0</b>
+                </div>
+                <div>
+                  <span>VS</span>
+                  <b id="sVs">0.0</b>
+                </div>
+              </div>
+            </div>
+            <div class="pbox nextq">
+              <span class="muted" data-t="next">
+              </span>
+              <canvas id="next" width="128" height="340">
+              </canvas>
+            </div>
+          </div>
+          <div class="eyebrow" id="rivalName">NOVA</div>
+          <div class="rivalwrap">
+            <canvas id="rival" width="240" height="480">
+            </canvas>
+            <div id="rmeter" class="gmeter" aria-hidden="true">
+              <i>
+              </i>
+              <i class="pend">
+              </i>
+            </div>
+          </div>
+          <div class="muted" id="rinc">
+          </div>
+        </aside>
+      </div>
+      <div id="powers" hidden>
+        <button data-action="power1" id="power1">◇</button>
+        <button data-action="power2" id="power2">◇</button>
+      </div>
+      <div id="controls" class="controls">
+        <button data-action="left">←</button>
+        <button data-action="ccw">↺</button>
+        <button data-action="rotate">↻</button>
+        <button data-action="right">→</button>
+        <button data-action="soft">↓</button>
+        <button data-action="hard">⤓</button>
+      </div>
+      <div id="hint" data-t="hint">
+      </div>
+    </section>
+    <section id="modal" class="screen" data-screen="overlay" hidden>
+    </section>
+    <section id="result" class="screen" data-screen="result" hidden>
+      <div class="eyebrow" id="resultEyebrow">
+      </div>
+      <h2 id="outcome">
+      </h2>
+      <div id="promo" hidden>
+      </div>
+      <p id="resultStats">
+      </p>
+      <div class="stack">
+        <button id="rematch" class="primary" data-action="rematch" data-t="rematch">
+        </button>
+        <button id="home" data-t="home">
+        </button>
+      </div>
+    </section>
+    <div id="toast" hidden>
+    </div>
+    <div id="action" aria-live="polite">
+      <b>
+      </b>
+      <small>
+      </small>
+    </div>
+    <div id="flash">
+    </div>
+    <div id="gameover" hidden>
+    </div>
+  </div>
+</main>
