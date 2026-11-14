@@ -11,13 +11,13 @@
         (the default from Android 16 when targeting API 36; set here so Android 13-15 behave the same).
     -->
     <application
-        android:label="Neon Duel"
+        android:label="Khan Blocks"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
         android:appCategory="game"
         android:enableOnBackInvokedCallback="true"
         android:supportsRtl="true"
-        android:theme="@style/Theme.NeonDuel">
+        android:theme="@style/Theme.KhanBlocks">
         <!-- configChanges: rotating, folding, resizing or switching dark mode must not reload the game mid-match -->
         <activity
             android:name=".MainActivity"

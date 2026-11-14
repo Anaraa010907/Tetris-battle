@@ -13,7 +13,7 @@ header{z-index:1;left:90px;top:50px;height:45px;width:auto;justify-content:flex-
 header b{font-size:20px;font-weight:800;letter-spacing:.6px}
 header b i{font-style:normal;color:#b451f9}
 header small{margin-left:30px;padding-left:29px;border-left:1px solid #ffffff30;height:26px;display:flex;align-items:center;font-size:14px;font-weight:500;color:#9eb0d0;letter-spacing:.3px}
-#title{left:0;right:0;top:0;bottom:0;background:url(@@asset img/home-bg.webp@@) 0 0/100% 100% no-repeat}
+#title{left:0;right:0;top:0;bottom:0;background:#050817}
 #title>*{position:absolute;margin:0}
 #language{left:425px;top:50px;width:55px;height:45px;min-height:0;padding:0;border-radius:13px;font-size:15.5px;font-weight:800}
 .pill{left:50%;top:127px;height:28px;transform:translateX(-50%);display:flex;align-items:center;gap:9px;padding:0 17px;border-radius:999px;border:1.5px solid #22d8ec;background:#03101ecc;box-shadow:0 0 14px #22d3ee55,inset 0 0 10px #22d3ee22;color:#2ee9f2;font-size:13.5px;font-weight:800;letter-spacing:2.2px;white-space:nowrap}

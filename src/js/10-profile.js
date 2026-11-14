@@ -1,8 +1,10 @@
-/* ================= Neon Duel ================= */
-/* ================= Neon Duel ================= */
-/* ================= Neon Duel ================= */
+/* ================= Khan Blocks ================= */
+/* ================= Khan Blocks ================= */
+/* ================= Khan Blocks ================= */
 const $=id=>document.getElementById(id);
 const STRINGS=JSON.parse($('translations').textContent);
+// "{@key}" inside a text is that language's text for key (the brand name, a title), so a rename is one edit
+for(const L of Object.values(STRINGS))for(const k in L)L[k]=L[k].replace(/\{@(\w+)\}/g,(m,key)=>L[key]??m);
 
 /* ---------- profile ---------- */
 const AVATARS=['👑','◈','☾','⚡'];

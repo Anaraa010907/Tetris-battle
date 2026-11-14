@@ -1,0 +1,51 @@
+/* effects overlay, incoming-garbage threat, progress bar, celebration (62-fx.js, 64-result.js) */
+#fx{position:absolute;left:0;top:0;width:452px;height:580px;pointer-events:none;z-index:4}
+#threat{position:absolute;left:274px;width:31px;height:19px;line-height:19px;border-radius:10px;text-align:center;font-size:12px;font-weight:800;
+  color:#2a1000;background:#ffb04a;box-shadow:0 0 10px #ff9f3c88;z-index:5;pointer-events:none;transition:top .2s}
+#threat.ready{color:#fff;background:#ff3f62;box-shadow:0 0 14px #ff3f62;animation:threat .7s ease-in-out infinite}
+@keyframes threat{50%{transform:scale(1.14)}}
+#meter.threat{border-color:#ff5c7a;animation:mthreat .7s ease-in-out infinite}
+@keyframes mthreat{50%{box-shadow:0 0 18px #ff3f62aa}}
+.gmeter.hit{animation:mhit .45s ease-out}
+@keyframes mhit{0%{box-shadow:0 0 0 2px #fff,0 0 30px #ff3f62;background:#5a1830}100%{box-shadow:none}}
+#board.rise,#rival.rise{animation:rise .28s cubic-bezier(.2,.9,.3,1)}
+@keyframes rise{0%{transform:translateY(8px)}100%{transform:none}}
+@media(prefers-reduced-motion:reduce){#threat.ready,#meter.threat,.gmeter.hit{animation:none}}
+/* progress bar (fxProgress) */
+.fxbar{width:100%}
+.fxlab{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:7px;font-size:13px;color:#a7b3cc}
+.fxlab b{color:#eef3ff;font-variant-numeric:tabular-nums}
+.fxtrack{position:relative;height:14px;border-radius:8px;background:#0b1428;border:1px solid #2a3c5c;overflow:hidden}
+.fxtrack i{position:absolute;top:0;bottom:0;left:0;border-radius:8px}
+.fxfill{background:var(--c);box-shadow:0 0 12px var(--c)}
+.fxgain{background:linear-gradient(90deg,var(--c),#fff);box-shadow:0 0 16px var(--c);width:0}
+.fxgain.lost{background:repeating-linear-gradient(45deg,#ff5c7a66 0 6px,#ff5c7a33 6px 12px);box-shadow:none}
+/* result screen: progress toward the next title */
+#rpProg{margin:4px 2px 18px;text-align:left}
+#rpProg .rptitle{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-weight:800;font-size:16px}
+#rpProg .rptitle .muted{margin-left:auto;font-weight:600}
+#result{padding-top:40px}
+#result .eyebrow{margin-top:40px}
+#result h2{margin:22px 0 18px}
+#resultStats{margin-top:4px}
+#result .stack{margin-top:24px}
+/* celebration (fxCelebrate) */
+#celebrate{position:absolute;inset:0;z-index:40;display:grid;place-items:center;background:radial-gradient(circle at 50% 42%,#3a2a10dd,#030612f2 62%);animation:cin .25s ease-out}
+#celebrate.out{opacity:0;transition:opacity .2s}
+#celebrate canvas{position:absolute;inset:0;width:504px;height:1092px;pointer-events:none}
+#celebrate .crays{position:absolute;left:50%;top:42%;width:760px;height:760px;margin:-380px 0 0 -380px;border-radius:50%;pointer-events:none;opacity:.5;
+  background:repeating-conic-gradient(from 0deg,var(--c) 0deg 6deg,transparent 6deg 22deg);-webkit-mask:radial-gradient(circle,#000 8%,transparent 62%);mask:radial-gradient(circle,#000 8%,transparent 62%);animation:ringspin 30s linear infinite}
+#celebrate .cbox{position:relative;text-align:center;padding:0 36px;max-width:440px}
+#celebrate .ckick{display:block;font-size:15px;font-weight:800;letter-spacing:3px;color:#ffd35c;text-transform:uppercase}
+#celebrate .cbadge{margin:18px auto 6px;width:150px;height:150px;display:grid;place-items:center;animation:cbadge .7s cubic-bezier(.2,1.5,.4,1)}
+#celebrate .cbadge svg{filter:drop-shadow(0 0 24px var(--c))}
+#celebrate h2{margin:6px 0 4px;font-size:46px;font-weight:800;font-style:italic;color:var(--c);text-shadow:0 0 30px var(--c)}
+#celebrate h2::after{margin:12px auto 0}
+#celebrate p{margin:8px 0 26px;color:#c9d2ea;font-size:16px}
+#celebrate button{width:100%;min-height:62px;font-size:19px}
+@keyframes cin{from{opacity:0}}
+@keyframes cbadge{0%{transform:scale(.2) rotate(-30deg);opacity:0}100%{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){#celebrate,#celebrate .cbadge,#celebrate .crays{animation:none}}
+#result::before{content:'';position:absolute;left:50%;top:150px;width:520px;height:420px;margin-left:-260px;pointer-events:none;z-index:-1;
+  background:radial-gradient(closest-side,#ffbf3a2e,#ffbf3a0d 60%,transparent)}
+#result:has(#outcome.lose)::before{background:radial-gradient(closest-side,#ff5c7a24,transparent)}

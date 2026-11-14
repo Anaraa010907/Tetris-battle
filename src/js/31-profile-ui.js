@@ -14,7 +14,7 @@ function stats(){
   }else h+='<p class="muted small">'+t('topRank')+'</p>';
   h+='<p>'+profile.wins+' '+t('wins')+' · '+profile.losses+' '+t('losses')+(games?' · '+Math.round(profile.wins/games*100)+'% '+t('winRate'):'')+'</p>';
   h+='<div class="row"><button style="flex:1" id="ladderBtn">'+t('ladder')+'</button><button style="flex:1" id="lbBtn">'+t('leaderboard')+'</button></div>';
-  h+='<div class="panel" style="margin:16px 0"><b>'+t('daily')+'</b><p class="muted">'+(profile.streak||0)+' '+t('streakDays')+'</p><button class="primary wide" id="claimDaily"'+(can?'':' disabled')+'>'+(can?t('claim')+' · +'+bonusFor()+' '+t('coins'):t('claimed'))+'</button></div>';
+  h+='<div class="panel" style="margin:16px 0"><b>'+t('daily')+'</b><p class="muted">'+(profile.streak||0)+' '+t('streakDays')+'</p>'+streakDots()+'<button class="primary wide" id="claimDaily"'+(can?'':' disabled')+'>'+(can?t('claim')+' · +'+bonusFor()+' '+t('coins'):t('claimed'))+'</button></div>';
   const inputs='<input id="aUser" placeholder="'+t(Cloud.on()?'email':'user')+'" maxlength="'+(Cloud.on()?80:16)+'" style="'+INP+'"'+(Cloud.on()?' type="email" autocomplete="email"':'')+'><input id="aPw" type="password" placeholder="'+t('pass')+'" style="'+INP+'">';
   if(Cloud.on()){
     const u=Cloud.session?.user;
@@ -28,11 +28,12 @@ function stats(){
     if(on)h+='<p class="muted">'+t('accTitle')+': '+esc(acc.user)+'</p><button class="wide" id="logout">'+t('logout')+'</button>';
     else h+='<div class="panel" style="margin:0 0 16px"><b>'+t('accTitle')+'</b><p class="muted">'+t('accInfo')+'</p>'+inputs+'<div class="row"><button style="flex:1" id="register"'+(acc?' hidden':'')+'>'+t('register')+'</button><button style="flex:1" id="login"'+(acc?'':' hidden')+'>'+t('login')+'</button></div><p id="aMsg" class="muted"></p></div>';
   }
-  h+='<button class="wide" id="statsDone">'+t('done')+'</button>';
+  h+='<button class="wide danger quiet" id="delAcc">'+t(Cloud.on()?'deleteAccount':'delete')+'</button><button class="wide" id="statsDone">'+t('done')+'</button>';
   modal(h);
   const msg=k=>$('aMsg').textContent=k;
   if(can)$('claimDaily').onclick=async()=>{$('claimDaily').disabled=true;try{await claimDaily();stats()}catch(e){msgBox(errText(e),stats)}};
   $('statsDone').onclick=closeModal;
+  $('delAcc').onclick=()=>deleteDialog(stats);
   $('ladderBtn').onclick=ladder;
   $('lbBtn').onclick=leaderboard;
   if(Cloud.ready()&&pl)Cloud.rpc('my_position').then(n=>{if(n&&$('myPos'))$('myPos').textContent=' · #'+n}).catch(()=>{});
@@ -71,9 +72,9 @@ function ladder(){
   const cur=placed()?titleIdx(profile.rank):-1;
   let h='<span class="eyebrow">'+t('ladder')+'</span><h2>'+t('ladder')+'</h2><div class="lb">';
   for(let i=TITLES.length-1;i>=0;i--){
-    const [k,from,col]=TITLES[i],letters=RANKS.filter(r=>titleIdx(r[1])===i).map(r=>r[0]);
-    h+='<div class="lbrow'+(i===cur?' me':'')+'">'+badge(letters[letters.length-1],col,32)+'<span class="nm" style="color:'+col+'">'+t(k)
-      +(i===cur?' · '+t('you'):'')+'</span><span class="muted small">'+letters.join(' ')+'</span><b>'+from+'+</b></div>';
+    const [k,from,col,em]=TITLES[i],letters=RANKS.filter(r=>titleIdx(r[1])===i).map(r=>r[0]);
+    h+='<div class="lbrow'+(i===cur?' me':'')+'">'+badge(letters[letters.length-1],col,36,em)+'<span class="nm tnm"><span style="color:'+col+'">'+t(k)
+      +(i===cur?' · '+t('you'):'')+'</span><small class="tmean">'+t(k+'D')+'</small></span><span class="muted small">'+letters.join(' ')+'</span><b>'+from+'+</b></div>';
   }
   modal(h+'</div><p class="muted small">'+t('ladderNote')+(Cloud.on()?' '+t('botCapNote'):'')+'</p><button class="wide" id="ladDone">'+t('done')+'</button>');
   $('ladDone').onclick=stats;

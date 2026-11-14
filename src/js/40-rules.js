@@ -13,7 +13,7 @@ const rotCW=m=>m[0].map((_,i)=>m.map(r=>r[i]).reverse());
 const ROT=SHAPES.map(m=>{const a=[m];for(let i=1;i<4;i++)a.push(rotCW(a[i-1]));return a});
 // previews: shapes trimmed to their cells
 const PREV=SHAPES.map(m=>{const rows=m.filter(r=>r.some(v=>v)),cols=m[0].map((_,c)=>c).filter(c=>rows.some(r=>r[c]));return rows.map(r=>cols.map(c=>r[c]))});
-// SRS kicks (x right, y up), as in the guideline / TETR.IO
+// SRS kicks (x right, y up), Tetra League style
 const KJ={'0>1':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],'1>0':[[0,0],[1,0],[1,-1],[0,2],[1,2]],'1>2':[[0,0],[1,0],[1,-1],[0,2],[1,2]],
   '2>1':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],'2>3':[[0,0],[1,0],[1,1],[0,-2],[1,-2]],'3>2':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
   '3>0':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],'0>3':[[0,0],[1,0],[1,1],[0,-2],[1,-2]]};
@@ -23,8 +23,7 @@ const KI={'0>1':[[0,0],[-2,0],[1,0],[-2,-1],[1,2]],'1>0':[[0,0],[2,0],[-1,0],[2,
 const K180={'0>2':[[0,0],[0,1],[1,1],[-1,1],[1,0],[-1,0]],'1>3':[[0,0],[1,0],[1,2],[1,1],[0,2],[0,1]],
   '2>0':[[0,0],[0,-1],[-1,-1],[1,-1],[-1,0],[1,0]],'3>1':[[0,0],[-1,0],[-1,2],[-1,1],[0,2],[0,1]]};
 const LOCK_DELAY=.5,MAX_RESETS=15,GARBAGE_DELAY=.35,GARBAGE_CAP=8,PC_BONUS=10;
-const COLORS=['#4bd9ed','#f2d86b','#b99aff','#75e9b5','#ff7298','#769cff','#ffa66d','#516781'];
-const THEMES=[COLORS.slice(0,7),['#5ef2c9','#c6f27a','#c08bff','#4fb7ff','#7af0ff','#e58bff','#3ddc97'],['#ff9f5a','#ffd166','#ff6f91','#f25c54','#c86bfa','#ffb4a2','#f9844a']];
+// block colours and looks live in the skin registry (59-skins.js)
 
 let state='title',boards=[],series=null,tick=0,acc=0,last=0,aiClock=0,powers=[],earned=0,log=[],seed=1,
   flashTime=0,actionTime=0,heldAction='',holdTime=0,holdNext=.28,roundEndSent=false,gest=null,overTimer=0;
@@ -86,7 +85,7 @@ function spinType(b){
   const f=[[0,1],[1,2],[2,3],[3,0]][p.r];
   return (c[f[0]]&&c[f[1]])||b.lastKick===4?2:1;
 }
-// TETR.IO (Tetra League) attack: lines, T-spins, back-to-back, combo multiplier, all clear
+// Tetra League style attack: lines, T-spins, back-to-back, combo multiplier, all clear
 function attackFor(n,spin,b2b,combo,pc){
   let a=n===0?0:spin===2?[0,2,4,6][n]:spin===1?[0,0,1,2][n]:[0,0,1,2,4][n];
   if(n>0&&(n===4||spin)&&b2b>0)a+=Math.floor(1+Math.log1p(b2b*.8));
@@ -114,6 +113,7 @@ function lock(b){
   const p=b.piece,spin=spinType(b),me=b===boards[0];
   for(let r=0;r<p.m.length;r++)for(let c=0;c<p.m[r].length;c++)if(p.m[r][c]&&p.y+r<0){b.dead=true;finishRound(b);return}
   for(let r=0;r<p.m.length;r++)for(let c=0;c<p.m[r].length;c++)if(p.m[r][c])b.cells[p.y+r][p.x+c]=p.id+1;
+  const fx=fxRows(b);                         // effects (62-fx.js): the rows about to clear
   let n=0,gc=0;
   for(let y=H-1;y>=0;y--)if(b.cells[y].every(v=>v)){if(b.cells[y].includes(8))gc++;b.cells.splice(y,1);b.cells.unshift(emptyRow());n++;y++}
   b.pieces++;
@@ -131,7 +131,7 @@ function lock(b){
       else{other.garbage.push({rows:rest,hole,delay:GARBAGE_DELAY});log.push({tick,type:'garbage',to:me?1:0,rows:rest})}
     }
   }
-  if(n===0){const before=pendingRows(b,true);dumpGarbage(b);if(me&&before)vibrate()}
+  if(n===0){const before=pendingRows(b,true);dumpGarbage(b);fxRise(b,before-pendingRows(b,true));if(me&&before)vibrate()}
   if(me){
     sound(n?'clear':'lock');
     if(n){vibrate();flashTime=.18}
@@ -141,6 +141,7 @@ function lock(b){
       while(earned>=param('powerLines')){earned-=param('powerLines');if(powers.length<2)powers.push(Math.floor(rnd()*3))}
     }
   }
+  fxLock(b,fx,spin,pc,atk);
   spawn(b);
   if(b.dead)finishRound(b);
   else if(me&&isOnline())Net.sendState();

@@ -1,6 +1,6 @@
-# Neon Duel: Google Play болон App Store-д гаргах заавар
+# Khan Blocks: Google Play болон App Store-д гаргах заавар
 
-Энэ заавар Neon Duel-д зориулагдсан. Алхмуудыг дарааллаар нь хийвэл Google Play-д эхлээд хаалттай туршилт (closed test), дараа нь бүх хүнд (production) гаргаж, App Store-д бэлтгэнэ. Төлбөр, шаардлагыг 2026 оны 11-р сарын байдлаар шалгасан. Эх сурвалжийг хамгийн доор жагсаасан. Дэлгүүрүүд дүрмээ өөрчилдөг тул эхлэхийн өмнө холбоосоор нэг харж аваарай.
+Энэ заавар Khan Blocks тоглоомд зориулагдсан. Алхмуудыг дарааллаар нь хийвэл Google Play-д эхлээд хаалттай туршилт (closed test), дараа нь бүх хүнд (production) гаргаж, App Store-д бэлтгэнэ. Төлбөр, шаардлагыг 2026 оны 11-р сарын байдлаар шалгасан. Эх сурвалжийг хамгийн доор жагсаасан. Дэлгүүрүүд дүрмээ өөрчилдөг тул эхлэхийн өмнө холбоосоор нэг харж аваарай.
 
 ## Агуулга
 
@@ -20,7 +20,7 @@
 | **Холбоо барих имэйл** | Нууцлалын бодлого, бүртгэл устгах хуудас, дэлгүүрийн хуудсанд олон нийтэд харагдана. Тоглоомд зориулсан тусдаа имэйл нээхийг зөвлөж байна |
 | **Хөгжүүлэгчийн нэр** | Google Play-ийн developer name, App Store-д таны хуулийн нэр seller болж харагдана |
 | **Repo-ийн нэр** | GitHub Pages-ийн хаяг repo-ийн нэрийг агуулна (1.2-ыг үз) |
-| **Аппын нэр** | Одоохондоо "Neon Duel". Google Play-д аппыг үүсгэсний дараа нэр өөрчилж болно, харин package name `com.anaraa.neonduel` хэзээ ч өөрчлөгдөхгүй |
+| **Аппын нэр** | **Khan Blocks** (дэлгүүрт "Khan Blocks: 1v1 Block Battle" / "Khan Blocks: Блокийн тулаан", шалтгааныг `docs/NAME.md`-ээс үз). Package name `com.anaraa.khanblocks`: Google Play-д анх оруулсны дараа хэзээ ч өөрчлөгдөхгүй |
 
 ---
 
@@ -43,14 +43,14 @@
 
 Шалгах: `grep -n "\[ХОЛБОО\|\[ХӨГЖҮҮЛЭГЧ\|\[СЕРВЕР" docs/privacy/*.html` хоосон гарах ёстой.
 
-Тоглоомын товчны нэр (жишээ нь "Дотоод мэдээлэл устгах") өөрчлөгдвөл `delete.html`-ийн А хэсгийг тааруулж засна.
+Тоглоомын товчны нэр (одоо онлайн үед "Бүртгэлээ устгах", офлайн үед "Профайл устгах") өөрчлөгдвөл `delete.html`-ийн А хэсгийг тааруулж засна.
 
 ### 1.2. Repo-ийн нэрийг өөрчлөх (санал)
 
-Pages-ийн хаяг `https://anaraa010907.github.io/<repo-ийн нэр>/privacy/` хэлбэртэй. Одоогийн нэр **Tetris-battle** тул бодлогын хаяг "Tetris" гэдэг үгийг агуулж, Google Play-ийн хуудсанд харагдана. Энэ нь өөр компанийн барааны тэмдэг тул **Pages асаахаас өмнө** repo-гоо жишээ нь `neon-duel` гэж нэрлэхийг зөвлөж байна:
+Pages-ийн хаяг `https://anaraa010907.github.io/<repo-ийн нэр>/privacy/` хэлбэртэй. Одоогийн нэр **Tetris-battle** тул бодлогын хаяг "Tetris" гэдэг үгийг агуулж, Google Play-ийн хуудсанд харагдана. Энэ нь өөр компанийн барааны тэмдэг тул **Pages асаахаас өмнө** repo-гоо `khan-blocks` гэж нэрлэхийг зөвлөж байна:
 
-1. Repo → **Settings → General → Repository name** → `neon-duel` → **Rename**.
-2. GitHub хуучин хаягаас шинэ рүү git-ийн push, pull-ийг өөрөө шилжүүлдэг. Компьютер дээрх хуулбарт хүсвэл: `git remote set-url origin https://github.com/Anaraa010907/neon-duel.git`
+1. Repo → **Settings → General → Repository name** → `khan-blocks` → **Rename**.
+2. GitHub хуучин хаягаас шинэ рүү git-ийн push, pull-ийг өөрөө шилжүүлдэг. Компьютер дээрх хуулбарт хүсвэл: `git remote set-url origin https://github.com/Anaraa010907/khan-blocks.git`
 
 Pages-ийн хаяг нэр солиход шилжихгүй тул нэрийг эхэлж солих нь чухал.
 
@@ -62,10 +62,10 @@ Pages нь `main` салбарын `docs/` хавтаснаас нийтэлнэ
 2. **Build and deployment → Source**: **Deploy from a branch**.
 3. **Branch**: `main`, хавтас: **`/docs`** → **Save**.
 4. Хэдэн минут хүлээгээд Settings → Pages дээр гарах хаягаар орж шалгана:
-   - Нууцлалын бодлого: `https://anaraa010907.github.io/neon-duel/privacy/`
-   - Бүртгэл устгах: `https://anaraa010907.github.io/neon-duel/privacy/delete.html`
+   - Нууцлалын бодлого: `https://anaraa010907.github.io/khan-blocks/privacy/`
+   - Бүртгэл устгах: `https://anaraa010907.github.io/khan-blocks/privacy/delete.html`
 
-(Repo-ийн нэрээ солиогүй бол `neon-duel`-ийн оронд `Tetris-battle` байна.)
+(Repo-ийн нэрээ солиогүй бол `khan-blocks`-ийн оронд `Tetris-battle` байна.)
 
 - GitHub Pages нийтийн (public) repo-д үнэгүй. Repo-г private болговол GitHub Pro эсвэл түүнээс дээш багц хэрэгтэй болно.
 - `docs/.nojekyll` файл нь Pages-ийг файлуудыг байгаа чигээр нь нийтлүүлдэг. `docs/` доторх бусад файл (энэ заавар гэх мэт) ч мөн нээлттэй харагдана. Repo нийтийн тул шинэ нууц юм задрахгүй.
@@ -89,7 +89,7 @@ Pages нь `main` салбарын `docs/` хавтаснаас нийтэлнэ
 Google Play-д илгээх `.aab` файлыг таны **upload key**-ээр гарын үсэг зурна. Түлхүүрийг өөрийн компьютер дээр нэг удаа үүсгэнэ. `keytool` нь Java (JDK) эсвэл Android Studio-той хамт ирдэг.
 
 ```bash
-keytool -genkeypair -v -keystore neonduel-upload.jks -alias neonduel-upload \
+keytool -genkeypair -v -keystore khanblocks-upload.jks -alias khanblocks-upload \
   -keyalg RSA -keysize 2048 -validity 10000
 ```
 
@@ -99,7 +99,7 @@ keytool -genkeypair -v -keystore neonduel-upload.jks -alias neonduel-upload \
 - Нэр, байгууллага, хот, улсын кодыг (`MN`) бөглөнө.
 - `-validity 10000` нь 27 орчим жил хүчинтэй.
 
-**Хадгалах:** `neonduel-upload.jks` файл болон нууц үгийг хоёр өөр аюулгүй газар хадгална (нууц үгийн менежер, USB гэх мэт). **Git-д хэзээ ч бүү оруул** (`.gitignore`-д `*.jks` хаагдсан). Алдчихвал Play App Signing-ийн ачаар апп устахгүй: Play Console-оос upload key шинэчлэх хүсэлт гаргаж болно, гэхдээ хугацаа ордог.
+**Хадгалах:** `khanblocks-upload.jks` файл болон нууц үгийг хоёр өөр аюулгүй газар хадгална (нууц үгийн менежер, USB гэх мэт). **Git-д хэзээ ч бүү оруул** (`.gitignore`-д `*.jks` хаагдсан). Алдчихвал Play App Signing-ийн ачаар апп устахгүй: Play Console-оос upload key шинэчлэх хүсэлт гаргаж болно, гэхдээ хугацаа ордог.
 
 ### 2.3. Түлхүүрийг base64 болгох
 
@@ -108,7 +108,7 @@ GitHub secret-д зөвхөн текст хадгалагддаг тул `.jks` 
 **macOS:**
 
 ```bash
-base64 -i neonduel-upload.jks | pbcopy
+base64 -i khanblocks-upload.jks | pbcopy
 ```
 
 (clipboard-д хуулагдана.)
@@ -116,13 +116,13 @@ base64 -i neonduel-upload.jks | pbcopy
 **Linux:**
 
 ```bash
-base64 -w 0 neonduel-upload.jks > neonduel-upload.jks.b64
+base64 -w 0 khanblocks-upload.jks > khanblocks-upload.jks.b64
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD\neonduel-upload.jks")) | Set-Clipboard
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD\khanblocks-upload.jks")) | Set-Clipboard
 ```
 
 (clipboard-д хуулагдана.) Windows-ийн `certutil -encode` нь эхэнд, төгсгөлд "BEGIN/END CERTIFICATE" мөр нэмдэг тул бүү ашигла. Мөр шилжилт, хоосон зайг workflow өөрөө арилгадаг.
@@ -135,10 +135,10 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 | --- | --- |
 | `ANDROID_KEYSTORE_BASE64` | 2.3-ын base64 текст бүхэлдээ |
 | `ANDROID_KEYSTORE_PASSWORD` | keystore-ийн нууц үг |
-| `ANDROID_KEY_ALIAS` | `neonduel-upload` |
+| `ANDROID_KEY_ALIAS` | `khanblocks-upload` |
 | `ANDROID_KEY_PASSWORD` | түлхүүрийн нууц үг (ихэвчлэн keystore-ийнхтой ижил) |
 
-`gh` CLI ашигладаг бол: `gh secret set ANDROID_KEYSTORE_BASE64 < neonduel-upload.jks.b64` (бусдыг нь `gh secret set ANDROID_KEY_ALIAS` гэх мэтээр бичихэд утгыг асууна). Дараа нь `.b64` файлыг устгана.
+`gh` CLI ашигладаг бол: `gh secret set ANDROID_KEYSTORE_BASE64 < khanblocks-upload.jks.b64` (бусдыг нь `gh secret set ANDROID_KEY_ALIAS` гэх мэтээр бичихэд утгыг асууна). Дараа нь `.b64` файлыг устгана.
 
 Онлайн хувилбар гаргах бол `SUPABASE_URL`, `SUPABASE_ANON_KEY` secret-ийг мөн нэмнэ (`docs/SUPABASE.md`).
 
@@ -146,7 +146,7 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 
 1. Repo → **Actions → Build release AAB for Google Play → Run workflow**.
 2. `version_code` хоосон орхивол автоматаар `ажиллуулсан дугаар + 100` болно (101, 102, ...). Google Play-д илгээх бүр өмнөхөөсөө **их** versionCode-той байх ёстой.
-3. Дуусахад run-ийн хуудасны **Summary** дээр **ONLINE** эсвэл **OFFLINE**, мөн versionCode харагдана. Доор нь **Artifacts**-аас `neon-duel-release-aab-…` zip-ийг татаж задлахад `app-release.aab` гарна.
+3. Дуусахад run-ийн хуудасны **Summary** дээр **ONLINE** эсвэл **OFFLINE**, мөн versionCode харагдана. Доор нь **Artifacts**-аас `khan-blocks-release-aab-…` zip-ийг татаж задлахад `app-release.aab` гарна.
 
 - Workflow эхлээд secret-үүдийг шалгана. Нууц үг эсвэл alias буруу бол тодорхой алдаа гаргаж зогсоно. Log-д upload key-ийн SHA-1 ба SHA-256 хурууны хээ харагдана (нууц биш). Play Console-ийн хуудсанд байгаатай таарч байгаа эсэхийг шалгаж болно.
 - Амжилтгүй болсон run-ийг **Re-run** хийвэл ижил дугаар авна. Шинэ upload-д **Run workflow**-ээр шинэ run эхлүүлнэ.
@@ -160,7 +160,7 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 
 | Талбар | Утга |
 | --- | --- |
-| App name | Neon Duel |
+| App name | Khan Blocks: 1v1 Block Battle (монгол хуудсанд: Khan Blocks: Блокийн тулаан) |
 | Default language | Монгол (mn-MN) эсвэл English (United States) |
 | App or game | **Game** |
 | Free or paid | **Free** (үнэгүй гаргасан аппыг дараа нь төлбөртэй болгох боломжгүй. Дотоод худалдан авалтыг хожим нэмж болно) |
@@ -168,7 +168,7 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 
 ### 2.7. Play App Signing
 
-Анхны `.aab`-ийг upload хийхэд апп **Play App Signing**-д автоматаар бүртгэгдэж, хэрэглэгчдэд очих аппын гарын үсгийн түлхүүрийг Google үүсгэж хадгална. Таны `neonduel-upload.jks` нь зөвхөн **upload key**: "энэ файлыг жинхэнэ хөгжүүлэгч илгээсэн" гэдгийг батална.
+Анхны `.aab`-ийг upload хийхэд апп **Play App Signing**-д автоматаар бүртгэгдэж, хэрэглэгчдэд очих аппын гарын үсгийн түлхүүрийг Google үүсгэж хадгална. Таны `khanblocks-upload.jks` нь зөвхөн **upload key**: "энэ файлыг жинхэнэ хөгжүүлэгч илгээсэн" гэдгийг батална.
 
 - Play Console-ийн **Play app signing** хуудасны **Upload key certificate**-ийн SHA-1/SHA-256 нь workflow-ийн log-той таарах ёстой.
 - Upload key-ээ алдвал тэр хуудаснаас **Request upload key reset** хийнэ.
@@ -205,7 +205,7 @@ Google-ийн тодорхойлолтоор "цуглуулах" гэдэг н�
 | --- | --- |
 | Does your app collect or share any of the required user data types? | **No** |
 | Account creation | Апп бүртгэл үүсгэдэггүй гэж хариулна. Офлайн "Бүртгүүлэх" нь зөвхөн утсанд үүсдэг; Google "бүрэн офлайн үүсэж ажилладаг бүртгэл бол аппын бүртгэл биш" гэж тодорхойлсон |
-| Data deletion | Хэрэглэгч Тохиргоо → "Дотоод мэдээлэл устгах"-аар утсан дахь мэдээллээ устгадаг. Бүртгэл устгах вэб хаягийн талбар гарвал 1.3-ын `delete.html`-ийг өгч болно |
+| Data deletion | Хэрэглэгч Профайл (эсвэл Тохиргоо) → "Профайл устгах"-аар утсан дахь мэдээллээ устгадаг. Бүртгэл устгах вэб хаягийн талбар гарвал 1.3-ын `delete.html`-ийг өгч болно |
 
 #### Онлайн build (summary-д ONLINE)
 
@@ -265,8 +265,8 @@ Google-ийн тодорхойлолтоор "цуглуулах" гэдэг н�
 
 Google Play апп дотор бүртгэл устгах зам болон аппгүйгээр устгуулах вэб хаяг хоёуланг нь шаарддаг.
 
-- **Апп дотор:** Тохиргоо → "Дотоод мэдээлэл устгах" (онлайн үед серверийн бүртгэлийг `delete_my_account`-аар устгадаг). Бэлэн.
-- **Вэб хаяг:** `…/privacy/delete.html`. Энэ хуудас аппын нэр ("Neon Duel"), хөгжүүлэгчийн нэр, апп доторх алхам, аппгүйгээр имэйлээр устгуулах арга, юу устах, юу үлдэхийг агуулсан. Хаягийг Data safety-ийн "Delete account URL" талбарт өгнө.
+- **Апп дотор:** Профайл (эсвэл Тохиргоо) → "Бүртгэлээ устгах" (онлайн үед серверийн бүртгэлийг `delete_my_account`-аар устгадаг). Бэлэн.
+- **Вэб хаяг:** `…/privacy/delete.html`. Энэ хуудас аппын нэр ("Khan Blocks"), хөгжүүлэгчийн нэр, апп доторх алхам, аппгүйгээр имэйлээр устгуулах арга, юу устах, юу үлдэхийг агуулсан. Хаягийг Data safety-ийн "Delete account URL" талбарт өгнө.
 - Google-ийн шаардлагаар хүсэлтийг "боломжийн хурдан" биелүүлнэ. Хуудсанд "ихэвчлэн 7 хоног, хамгийн удаахдаа 30 хоног" гэж амласан тул имэйлээ тогтмол шалгаарай.
 
 ---
@@ -294,10 +294,10 @@ https://appstoreconnect.apple.com → **Apps → + → New App**:
 | Талбар | Утга |
 | --- | --- |
 | Platform | iOS |
-| Name | Neon Duel (≤ 30 тэмдэгт) |
+| Name | Khan Blocks: 1v1 Block Battle (29 тэмдэгт, ≤ 30) |
 | Primary language | English (U.S.). Монгол хэл App Store-ийн хуудасны хэлний жагсаалтад одоогоор байхгүй |
-| Bundle ID | `com.anaraa.neonduel` (Xcode-д signing хийхэд бүртгэгдэнэ) |
-| SKU | `neonduel-ios` (дотоод тэмдэглэгээ) |
+| Bundle ID | `com.anaraa.khanblocks` (Xcode-д signing хийхэд бүртгэгдэнэ) |
+| SKU | `khanblocks-ios` (дотоод тэмдэглэгээ) |
 
 **App Information:** Subtitle (≤ 30), Category: **Games → Puzzle**, хоёрдогч **Action**. Privacy Policy URL: 1.3-ын хаяг. Age Rating асуулга: хүчирхийлэл гэх мэт бүгд None. Онлайн хувилбарт хэрэглэгчид бие биентэйгээ харилцах (чат биш, хоч ба хамт тоглох) талаарх асуултыг үнэнээр хариулна.
 
@@ -315,27 +315,27 @@ https://appstoreconnect.apple.com → **Apps → + → New App**:
 **App Review Information** (review-д зориулсан тэмдэглэл, англиар):
 
 ```text
-Neon Duel is a complete 1v1 falling-blocks battle game; all game files are bundled in the app and it works fully offline.
+Khan Blocks is a complete 1v1 falling-blocks battle game; all game files are bundled in the app and it works fully offline.
 No login is needed: online builds create a guest account automatically. Ranked: if no opponent is found within
 10 seconds, a clearly labelled bot match is offered, so the reviewer does not need a second device.
-Account deletion: Settings > "Delete local profile" (online it deletes the server account).
+Account deletion: Profile (tap the name card on the home screen) > "Delete my account", also in Settings.
 Privacy policy and deletion page: <URL>
 ```
 
 ### 3.5. Review-ийн эрсдэл ба тоглоом түүнийг хэрхэн давах
 
-**Guideline 4.2 (Minimum Functionality):** Apple "аппад зөвхөн дахин савласан вэбсайтаас илүү боломж, контент, UI байх ёстой. Удаан хугацааны зугаа цэнгэл эсвэл хангалттай ашиг тус өгөхгүй бол татгалзаж болно" гэж заасан. WebView-д суурилсан апп энэ шалтгаанаар ихэвчлэн буцаагддаг. Neon Duel-ийн давуу тал:
+**Guideline 4.2 (Minimum Functionality):** Apple "аппад зөвхөн дахин савласан вэбсайтаас илүү боломж, контент, UI байх ёстой. Удаан хугацааны зугаа цэнгэл эсвэл хангалттай ашиг тус өгөхгүй бол татгалзаж болно" гэж заасан. WebView-д суурилсан апп энэ шалтгаанаар ихэвчлэн буцаагддаг. Khan Blocks-ийн давуу тал:
 - Вэбсайт ачаалдаггүй: бүх тоглоом аппын дотор, интернэтгүй бүрэн ажиллана.
 - Бүрэн тоглоом: AI-ийн 3 түвшин, rank ба 8 цол, онлайн 1v1, FT3, өдрийн шагнал, загвар, хоёр хэл.
 - Утсанд зориулсан мэдрэгч удирдлага, дуу, хөгжим, тоглоомын шиг UI.
 - Review-ийн тэмдэглэлд дээрхийг тодорхой бичнэ.
 
 Сайжруулбал зохих зүйлс (тоглоомын кодонд, энэ PR-д хийгээгүй):
-- Тоглоом доторх "prototype", "offline edition" гэх бичгийг арилгах (дуусаагүй апп мэт харагдуулна). Жишээ нь нууцлалын товчны текст, дэлгүүрийн "бодит төлбөр байхгүй" гэсэн мөр.
+- ~~Тоглоом доторх "prototype", "offline edition" гэх бичгийг арилгах~~: хийгдсэн (look-identity PR).
 - iPhone-д чичиргээ ажиллуулах (`@capacitor/haptics`): нативын боломж нэмэгдэнэ.
 - Бүтэн дэлгэц (safe area) дэмжих (`docs/IOS.md`, 6-р хэсэг).
 
-**Guideline 5.1.1(v) (бүртгэл устгах):** бүртгэл үүсгэдэг апп бүртгэлийг апп дотроос устгах боломжтой байх ёстой. Автоматаар үүссэн зочин бүртгэлд ч хамаатай. Neon Duel-д Тохиргоо → устгах товч бий (онлайн үед серверийн бүртгэлийг бүрмөсөн устгадаг). Мөн "бүртгэлийн гол боломжгүй бол нэвтрэлтгүйгээр ашиглуул" гэсэн шаардлагыг хангадаг: нэвтрэлт шаардахгүй.
+**Guideline 5.1.1(v) (бүртгэл устгах):** бүртгэл үүсгэдэг апп бүртгэлийг апп дотроос устгах боломжтой байх ёстой. Автоматаар үүссэн зочин бүртгэлд ч хамаатай. Khan Blocks-д Профайл болон Тохиргоонд "Бүртгэлээ устгах" товч бий (серверийн бүртгэлийг бүрмөсөн устгадаг; онлайн бүртгэлгүй үед "Профайл устгах"). Мөн "бүртгэлийн гол боломжгүй бол нэвтрэлтгүйгээр ашиглуул" гэсэн шаардлагыг хангадаг: нэвтрэлт шаардахгүй.
 
 **Guideline 2.3.7 (metadata):** нэр, keyword-д бусад тоглоомын нэр, барааны тэмдэг бүү оруул. `docs/store/listing.md`-ийн keyword-ууд үүнийг дагасан.
 

@@ -132,6 +132,6 @@ jobs:
 
       - uses: actions/upload-artifact@v6
         with:
-          name: neon-duel-release-aab-${{ env.NEON_VERSION_CODE }}
+          name: khan-blocks-release-aab-${{ env.NEON_VERSION_CODE }}
           path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error

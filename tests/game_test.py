@@ -2,7 +2,7 @@
 """Browser tests for the built index.html (rules, touch controls, game flows, the offline and cloud paths).
 
     python3 tests/game_test.py                 all groups
-    python3 tests/game_test.py rules flows     only the named groups: rules, touch, flows, cloud, controls, friends
+    python3 tests/game_test.py rules flows     only the named groups: rules, touch, flows, cloud, controls, friends, look
 
 Environment: CHROME (browser binary, default: Playwright's Chromium), TEST_OUT (screenshot folder).
 Exit code 1 when a check fails or the page throws. Checks read state through the game's own globals
@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGE = os.path.join(ROOT, 'index.html')
 OUT = os.path.join(os.environ.get('TEST_OUT') or tempfile.mkdtemp(prefix='neon-test-'), '')
 os.makedirs(OUT, exist_ok=True)
-GROUPS = [g for g in sys.argv[1:] if not g.startswith('-')] or ['rules', 'touch', 'flows', 'cloud', 'controls', 'friends']
+GROUPS = [g for g in sys.argv[1:] if not g.startswith('-')] or ['rules', 'touch', 'flows', 'cloud', 'controls', 'friends', 'look']
 R, ERRS = {}, []
 
 
@@ -229,7 +229,7 @@ async def flows(br):
     await pg.click('#ranked'); await pg.click('#rkBot'); await pg.wait_for_timeout(100)
     await pg.evaluate("rivalRating=1200;finishRound(boards[1])"); await wait(pg, "state==='result'", 4000)
     r = await pg.evaluate("({placed:placed(),promo:!$('promo').hidden,title:titleName(profile.rank)})")
-    check('fifth ranked game gives a title with a banner', r['placed'] and r['promo'] and r['title'] == await pg.evaluate("t('tZaan')"), r)
+    check('fifth ranked game gives a title with a banner', r['placed'] and r['promo'] and r['title'] == await pg.evaluate("t('tMingghan')"), r)
     await pg.evaluate("leaveMatch()")
     await pg.click('.pcard'); await pg.wait_for_timeout(200)
     check('profile shows title and progress', await pg.evaluate("!!document.querySelector('.rankhead .rbadge')&&!!document.querySelector('.prog i')"))
@@ -684,6 +684,179 @@ async def friends(br):
     check('friend gone: offered a new room', await pg.evaluate("$('modal').textContent.includes(t('rematchGone'))"))
     await ctx.close()
 
+
+# ====================================================================== look (block skins, names)
+# a full-ish board with every piece value (1-7) and garbage (8); cell (x, y) holds BOARD[y][x]
+FULL = """(()=>{const b=boards[0],o=boards[1],rows=['..........','..........','..........','..........','..........','..........',
+  '..........','..........','..........','..........','..........','.......3..','......33..','1.....3...','1.2..5555.','1222.66777',
+  '14456617.7','44556617..','88888.8888','8888888.88'];b.cells=rows.map(r=>[...r].map(c=>c==='.'?0:+c));o.cells=b.cells.map(r=>r.slice());
+  b.piece={id:2,r:0,m:ROT[2][0],x:3,y:2};b.hold=6;b.canHold=true;b.garbage=[];render()})()"""
+# the colour 6 CSS px inside the left edge of a board cell (clear of the centre glyph)
+PIXEL = "((x,y)=>[...$('board').getContext('2d').getImageData((x*28+6)*2,(y*28+14)*2,1,1).data])"
+BANNED = r"tetr|тетр"
+
+
+async def look(br):
+    print('look', flush=True)
+    import re
+    ctx, pg = await new_page(br)
+    await pg.goto('file://' + PAGE)
+    info = await pg.evaluate("SKINS.map(k=>({id:k.id,price:k.price,style:k.style,n:k.palette.length,named:t(k.name)!==k.name&&t(k.desc)!==k.desc,painter:!!TILE_STYLES[k.style]}))")
+    check('skin registry: ids 0-2 present, 7 colours each, named, known tile style',
+          [k['id'] for k in info][:3] == [0, 1, 2] and all(k['n'] == 7 and k['named'] and k['painter'] for k in info) and info[0]['price'] == 0, info)
+    check('unknown skin id falls back to the default', await pg.evaluate("skinById(99)===SKINS[0]&&skinById(undefined)===SKINS[0]"))
+    guide = ['#4bd9ed', '#f2d86b', '#b99aff', '#75e9b5', '#ff7298', '#769cff', '#ffa66d']
+    pals = await pg.evaluate("SKINS.map(k=>k.palette.map(c=>c.toLowerCase()))")
+    check('no skin uses the guideline colour per piece', all(sum(a == b for a, b in zip(p, guide)) == 0 for p in pals), pals)
+    await pg.evaluate("profile.owned=[0,1,2];profile.fmt='single';startPractice()")
+    await pg.evaluate(FREEZE)
+    for sid in [k['id'] for k in info]:
+        await pg.evaluate("profile.theme=%d" % sid)
+        await pg.evaluate(FULL)
+        cells = await pg.evaluate("[[0,13],[2,14],[6,13],[1,16],[5,14],[5,15],[7,15],[0,18],[4,5]].map(([x,y])=>%s(x,y))" % PIXEL)
+        bg = cells[-1]
+        pieces = cells[:7]
+        dist = lambda a, b: sum(abs(a[i] - b[i]) for i in range(3))
+        distinct = all(dist(pieces[i], pieces[j]) > 40 for i in range(7) for j in range(i + 1, 7))
+        apart = all(dist(c, bg) > 60 for c in cells[:8]) and all(dist(cells[7], c) > 40 for c in pieces)
+        prev = await pg.evaluate("""['hold','next','rival'].map(id=>{const c=$(id),d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let a=0;for(let i=3;i<d.length;i+=4)a+=d[i]>0;return a})""")
+        check('skin %d: board cells drawn, 7 piece colours distinct, garbage stands out, previews drawn' % sid,
+              distinct and apart and all(n > 50 for n in prev), {'cells': cells, 'previews': prev})
+        await pg.evaluate("(()=>{const b=boards[0];for(let y=3;y<16;y++)b.cells[y]=b.cells[y].map((v,x)=>x===9?0:(x+y)%7+1);b.piece={id:5,r:0,m:ROT[5][0],x:0,y:0};b.queue[0]=2;render()})()")
+        x = await pg.evaluate("%s(4,0)" % PIXEL.replace('(x*28+6)*2,(y*28+14)*2', '(x*28+14)*2,(y*28+14)*2'))
+        check('skin %d: danger X marks stay red and readable' % sid, x[0] > 180 and x[1] < 110 and x[2] < 140, x)
+    # frame cost: unchanged frames draw nothing; a lock repaints only the board layer; moving frames stay cheap
+    await pg.evaluate("profile.theme=0"); await pg.evaluate(FULL)
+    r = await pg.evaluate("""(()=>{const p0=layerPaints;render();render();const idle=layerPaints===p0;
+      const b=boards[0];hard(b);render();const lock=layerPaints===p0+1;
+      const q=$('board').getContext('2d'),N=120;let t0=performance.now();
+      for(let i=0;i<N;i++){b.piece.x=3+(i&1);render();q.getImageData(0,0,1,1)}const move=(performance.now()-t0)/N;
+      t0=performance.now();for(let i=0;i<N;i++){render();q.getImageData(0,0,1,1)}const still=(performance.now()-t0)/N;
+      return {idle,lock,move,still}})()""")
+    check('rendering: idle frames skip, a lock repaints once, a moving frame < 4 ms, an idle frame < 1 ms',
+          r['idle'] and r['lock'] and r['move'] < 4 and r['still'] < 1, r)
+    print('       frame cost: moving %.3f ms, idle %.3f ms' % (r['move'], r['still']), flush=True)
+    await pg.evaluate("leaveMatch()")
+    # shop: real rendered previews, offline buying and equipping
+    await pg.evaluate("profile.owned=[0];profile.theme=0;profile.coins=150;save()")
+    await pg.click('#shop'); await pg.wait_for_timeout(100)
+    r = await pg.evaluate("""[...document.querySelectorAll('#modal canvas.skinprev')].map(c=>{const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let a=0;for(let i=3;i<d.length;i+=4)a+=d[i]===255;return a/(d.length/4)})""")
+    check('shop shows a rendered preview for every skin', len(r) == len(info) and all(v > .9 for v in r), r)
+    labels = await pg.evaluate("[...document.querySelectorAll('[data-theme] small')].map(e=>e.textContent)")
+    check('shop labels: selected / unlock with price', labels[0] == await pg.evaluate("t('selected')") and labels[1] == await pg.evaluate("t('unlockFor').replace('{p}',100)"), labels)
+    await pg.click('[data-theme="1"]')
+    check('offline: skin 1 bought and equipped', await pg.evaluate("[profile.theme,profile.coins,profile.owned.includes(1)]") == [1, 50, True])
+    await pg.click('[data-theme="2"]')
+    check('offline: not enough coins is refused', await pg.evaluate("[profile.theme,profile.coins,$('modal').textContent.includes(t('notEnough'))]") == [1, 50, True])
+    await pg.click('#infoDone'); await pg.click('#shop'); await pg.click('[data-theme="0"]')
+    check('offline: owned default skin re-equipped for free', await pg.evaluate("[profile.theme,profile.coins]") == [0, 50])
+    await pg.click('[data-theme="1"]')
+    check('offline: owned skin re-equipped for free', await pg.evaluate("[profile.theme,profile.coins]") == [1, 50])
+    await pg.click('#shopDone')
+    await ctx.close()
+    for sid in (0, 1, 2):
+        ctx, pg = await new_page(br, store={'owned': [0, 1, 2], 'theme': sid, 'coins': 5})
+        await pg.goto('file://' + PAGE)
+        await pg.evaluate("profile.fmt='single';startPractice()"); await pg.evaluate(FREEZE); await pg.wait_for_timeout(100)
+        r = await pg.evaluate("[profile.theme,currentSkin().id,getComputedStyle(document.documentElement).getPropertyValue('--skin-frame').trim()===currentSkin().board.frame]")
+        check('saved theme %d loads as skin %d and frames the board' % (sid, sid), r == [sid, sid, True], r)
+        await ctx.close()
+    ctx, pg = await new_page(br, store={'owned': [0, 7], 'theme': 7})
+    await pg.goto('file://' + PAGE)
+    check('an unknown saved theme falls back to the default skin', await pg.evaluate("[profile.theme,currentSkin().id]") == [0, 0])
+    # names: nothing a player or store visitor sees may say Tetris / TETR.IO or the old name
+    await pg.click('#shop')
+    seen = await pg.evaluate("JSON.stringify(STRINGS)+$('root').outerHTML+document.title")
+    vendor = await pg.evaluate("$('mable-strings')?.textContent||''")      # platform shell strings (src/vendor, not ours to edit)
+    check('no Tetris / TETR.IO in translations, markup or title', not re.search(BANNED, seen + vendor, re.I), re.findall(r'.{30}(?:%s).{30}' % BANNED, seen + vendor, re.I)[:3])
+    check('the old name is gone from what players see', not re.search(r'neon\s*duel', seen, re.I), re.findall(r'.{30}neon\s*duel.{30}', seen, re.I)[:3])
+    brand = await pg.evaluate("t('brandName')")
+    r = await pg.evaluate("[document.title,$('brandMark').textContent.trim(),t('titleName'),$('loading').textContent.trim().slice(0,t('brandName').length),document.querySelector('.logo').getAttribute('aria-label'),[...document.querySelectorAll('.logo .lgf,.logo .lgw2')].map(e=>e.textContent).join(' ').trim()]")
+    check('the brand name comes from one place (brandName) everywhere in the app', r == [brand] * 5 + [brand.upper()], r)
+    r = await pg.evaluate("""(()=>{const L=STRINGS[profile.lang],keep=L.brandName,out=[];
+      for(const name of ['Qwmwxwmwz','Wwwwwwwww Mmmmmmmmm','Khan Blocks']){L.brandName=name;brandLogo();
+        out.push([document.querySelector('.logo .lgf').getComputedTextLength()<=400,document.querySelector('.logo .lgw2').getComputedTextLength()<=220,$('brandMark').offsetWidth<=162])}
+      L.brandName=keep;brandLogo();return out})()""")
+    check('any one- or two-word name of up to 9 letters fits the logo and the header', all(all(x) for x in r), r)
+    texts = '\n'.join(re.findall(r'```text\n(.*?)```', open(os.path.join(ROOT, 'docs/store/listing.md'), encoding='utf-8').read(), re.S))
+    store = {'README.md': open(os.path.join(ROOT, 'README.md'), encoding='utf-8').read(), 'store listing texts': texts}
+    for f in ['docs/privacy/index.html', 'docs/privacy/delete.html', 'android/app/src/main/AndroidManifest.xml', 'capacitor.config.json', 'package.json']:
+        if os.path.exists(os.path.join(ROOT, f)):
+            store[f] = open(os.path.join(ROOT, f), encoding='utf-8').read()
+    for d, _, fs in os.walk(os.path.join(ROOT, 'android')):
+        store.update({os.path.join(d, f): open(os.path.join(d, f), encoding='utf-8').read() for f in fs if f == 'strings.xml'})
+    hits = [f for f, txt in store.items() if re.search(BANNED, txt, re.I) or (f != 'README.md' and re.search(r'neon duel', txt, re.I))]
+    check('no Tetris / TETR.IO / old name in README, store texts, privacy pages, app label', not hits, hits)
+    check('store app label and app name match the brand', 'android:label="%s"' % brand in store.get('android/app/src/main/AndroidManifest.xml', 'android:label="%s"' % brand)
+          and '"appName": "%s"' % brand in store.get('capacitor.config.json', '"appName": "%s"' % brand))
+    r = await pg.evaluate("""(()=>{stats();$('ladderBtn').click();const rows=[...document.querySelectorAll('.lb .lbrow')];
+      return {n:rows.length,meanings:rows.every((r,i)=>r.querySelector('.tmean')?.textContent===t(TITLES[TITLES.length-1-i][0]+'D')),
+        emblems:TITLES.every(x=>!!BADGE_EMBLEMS[x[3]])&&rows.every(r=>r.querySelector('svg g')),names:TITLES.every(x=>t(x[0])!==x[0]&&t(x[0]+'D')!==x[0]+'D')}})()""")
+    check('titles: 8 ranks, each with a name, a one-line meaning and an emblem badge', r == {'n': 8, 'meanings': True, 'emblems': True, 'names': True}, r)
+    await pg.evaluate("closeModal()")
+    words = await pg.evaluate("JSON.stringify(STRINGS.en)")
+    check('no prototype / edition wording in the app texts', not re.search(r'prototype|this edition|offline edition|simulated', words, re.I), re.findall(r'.{20}(?:prototype|edition|simulated).{20}', words, re.I))
+    await ctx.close()
+
+    # home screen: drawn backdrop, logo, floating pieces in the equipped skin, the daily streak chip
+    ctx, pg = await new_page(br, store={'streak': 3, 'lastClaim': '', 'coins': 10})
+    await pg.goto('file://' + PAGE); await pg.wait_for_timeout(300)
+    r = await pg.evaluate("""(()=>{const lit=cv=>{const d=cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data;let n=0;for(let i=3;i<d.length;i+=16)n+=d[i]>0;return n};
+      return {art:lit($('homeArt')),pieces:document.querySelectorAll('#hero canvas.hp').length,lit:[...document.querySelectorAll('#hero canvas.hp')].every(c=>lit(c)>20),
+        ring:lit($('homeRing'))>100,streak:!$('streak').hidden&&$('streak').textContent.includes(t('streakN').replace('{n}',3)),ready:$('streak').classList.contains('ready'),
+        ids:['language','sound','profileName','record','rank','diff','start','tutorial','settings','shop','ranked','headStatus'].every(id=>!!$(id))}})()""")
+    check('home: drawn backdrop, ring, floating pieces, streak chip, all controls present',
+          r['art'] > 10000 and r['pieces'] >= 5 and r['lit'] and r['ring'] and r['streak'] and r['ready'] and r['ids'], r)
+    await pg.click('#streak'); await pg.wait_for_timeout(200)
+    check('streak chip opens the profile with the daily reward', await pg.evaluate("!!$('claimDaily')&&document.querySelectorAll('.sdots i.on').length===3"))
+    await pg.evaluate("closeModal()")
+    await pg.click('#tutorial'); await pg.wait_for_timeout(100)
+    r = await pg.evaluate("(()=>{const c=$('tutArt'),d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=3;i<d.length;i+=16)n+=d[i]>0;return n})()")
+    check('tutorial steps show a picture drawn with the skin', r > 2000, r)
+    await pg.evaluate("closeModal()")
+    # delete: the label says what it deletes, and Profile has it too
+    await pg.click('#settings')
+    check('offline: Settings offers "Delete profile"', await pg.evaluate("$('delete').textContent===t('delete')"))
+    await pg.evaluate("closeModal()"); await pg.click('.pcard'); await pg.wait_for_timeout(200)
+    await pg.click('#delAcc'); await pg.wait_for_timeout(100)
+    check('Profile has the delete button and asks before deleting', await pg.evaluate("$('yesDelete').textContent===t('confirmDelete')&&$('modal').textContent.includes(t('deleteAsk'))"))
+    await pg.click('#noDelete'); await pg.wait_for_timeout(100)
+    check('cancel returns to the profile', await pg.evaluate("!!$('statsDone')"))
+    await pg.evaluate("closeModal()")
+    # effects: a quad bursts, flashes and sends an orb to the rival meter; the rival's attack flies to mine
+    await pg.evaluate("profile.fmt='single';startPractice()"); await pg.evaluate(FREEZE)
+    QUAD = """(()=>{const b=boards[%d];b.cells=Array.from({length:20},emptyRow);for(let y=16;y<20;y++){b.cells[y]=Array(10).fill(5);b.cells[y][9]=0}
+      b.cells[15][0]=3;b.piece={id:0,r:1,m:ROT[0][1],x:7,y:0};b.garbage=[];hard(b);return fxParts.reduce((a,p)=>(a[p.k]=(a[p.k]||0)+1,a),{})})()"""
+    r = await pg.evaluate(QUAD % 0)
+    check('effects: a quad gives sparks, row flashes and an attack orb', r.get('spark', 0) > 20 and r.get('row') == 4 and r.get('orb') == 1, r)
+    hit = await pg.evaluate("(()=>{const o=fxParts.find(p=>p.k==='orb');return o&&o.hit.id})()")
+    check('effects: the orb flies to the rival meter', hit == 'rmeter', hit)
+    await pg.wait_for_timeout(700)
+    r = await pg.evaluate(QUAD % 1 + ";fxParts.find(p=>p.k==='orb')?.hit.id")
+    check('effects: the rival attack flies to my meter', r == 'meter', r)
+    await pg.wait_for_timeout(700)
+    r = await pg.evaluate("[$('threat').hidden,$('threat').textContent,$('meter').classList.contains('threat')]")
+    check('incoming garbage: the meter shows the count and pulses when ready', r[0] is False and r[1].startswith('+') and r[2], r)
+    await ctx.close()
+    # reduced motion: no shake, no flying orbs, fewer sparks
+    ctx = await br.new_context(viewport={'width': 393, 'height': 852}, device_scale_factor=2, reduced_motion='reduce')
+    pg = await ctx.new_page(); pg.on('pageerror', lambda e: ERRS.append('PAGEERROR ' + str(e)))
+    await pg.goto('file://' + PAGE)
+    await pg.evaluate("profile.fmt='single';startPractice()"); await pg.evaluate(FREEZE)
+    r = await pg.evaluate(QUAD % 0 + ";[fxParts.filter(p=>p.k==='orb').length,fxParts.filter(p=>p.k==='spark').length,fxShakeT,getComputedStyle(document.querySelector('.hp')).animationName]")
+    check('reduced motion: no orb, no shake, fewer sparks, home pieces still', r[0] == 0 and r[1] <= 40 and r[2] == 0 and r[3] == 'none', r)
+    await ctx.close()
+    # result: a bar toward the next title, and a celebration for the first title that closes when leaving
+    ctx, pg = await new_page(br, store={'wins': 4, 'losses': 0, 'rank': 1160})
+    await pg.goto('file://' + PAGE)
+    await pg.evaluate("profile.fmt='single'"); await pg.click('#ranked'); await pg.click('#rkBot'); await pg.wait_for_timeout(100)
+    await pg.evaluate("rivalRating=1200;finishRound(boards[1])"); await wait(pg, "state==='result'", 4000)
+    check('result: an RP bar toward the next title', await pg.evaluate("!!document.querySelector('#rpProg .fxbar')&&!$('rpProg').hidden"))
+    await wait(pg, "!!$('celebrate')", 4000)
+    check('result: the first title is celebrated', await pg.evaluate("$('celebrate').textContent.includes(titleName(profile.rank))&&$('celebrate').textContent.includes(t('placedNow'))"))
+    await pg.evaluate("leaveMatch()"); await wait(pg, "!$('celebrate')", 2000)
+    check('the celebration closes when leaving the result', await pg.evaluate("state==='title'&&!$('celebrate')"))
+    await ctx.close()
 
 async def main():
     async with async_playwright() as pw:

@@ -1,8 +1,8 @@
 {
-  "name": "neon-duel",
+  "name": "khan-blocks",
   "version": "1.3.0",
   "private": true,
-  "description": "Neon Duel iOS app: Capacitor wrapper around the single-file game (index.html). See docs/IOS.md.",
+  "description": "Khan Blocks iOS app: Capacitor wrapper around the single-file game (index.html). See docs/IOS.md.",
   "scripts": {
     "prepare-web": "node tools/prepare-web.mjs",
     "ios:add": "node tools/prepare-web.mjs && cap add ios",

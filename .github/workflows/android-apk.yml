@@ -66,6 +66,6 @@ jobs:
 
       - uses: actions/upload-artifact@v6
         with:
-          name: neon-duel-debug-apk
+          name: khan-blocks-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

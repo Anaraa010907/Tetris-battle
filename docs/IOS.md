@@ -1,4 +1,4 @@
-# Neon Duel: iOS (iPhone) хувилбар бэлтгэх
+# Khan Blocks: iOS (iPhone) хувилбар бэлтгэх
 
 Тоглоом бүхэлдээ нэг `index.html` файл. iPhone-д гаргахдаа [Capacitor](https://capacitorjs.com) ашиглана: Capacitor нь `index.html`-ийг аппын дотор хийж, iOS-ийн WebView (WKWebView)-д ачаалдаг Xcode project үүсгэнэ. Тоглоомын кодыг өөрчлөх шаардлагагүй.
 
@@ -7,7 +7,7 @@
 | Файл | Юу хийдэг |
 | --- | --- |
 | `package.json` | Capacitor 8-ийн багцууд (`@capacitor/core`, `@capacitor/ios`, `@capacitor/cli`) ба доорх командууд |
-| `capacitor.config.json` | Аппын ID `com.anaraa.neonduel`, нэр `Neon Duel`, вэб файлын хавтас `www`, iOS-ийн тохиргоо |
+| `capacitor.config.json` | Аппын ID `com.anaraa.khanblocks`, нэр `Khan Blocks`, вэб файлын хавтас `www`, iOS-ийн тохиргоо |
 | `tools/prepare-web.mjs` | `index.html`-ийг `www/` руу хуулна, Supabase-ийн тохиргоо өгвөл онлайн хувилбар болгоно |
 | `.gitignore` | `node_modules/`, `www/`, iOS-ийн build файлуудыг git-ээс хасна |
 
@@ -33,8 +33,8 @@ Android-д бидний өөрсдийн `android/` project хэвээр аши�
 Terminal нээгээд:
 
 ```bash
-git clone https://github.com/Anaraa010907/Tetris-battle.git neon-duel
-cd neon-duel
+git clone https://github.com/Anaraa010907/Tetris-battle.git khan-blocks
+cd khan-blocks
 npm install
 npm run ios:add
 ```
@@ -94,8 +94,8 @@ npm run ios:open
 
 | Тохиргоо | Утга |
 | --- | --- |
-| Display Name | `Neon Duel` |
-| Bundle Identifier | `com.anaraa.neonduel` (өөрчлөхгүй: App Store Connect-д энэ ID-гаар бүртгэнэ) |
+| Display Name | `Khan Blocks` |
+| Bundle Identifier | `com.anaraa.khanblocks` (өөрчлөхгүй: App Store Connect-д энэ ID-гаар бүртгэнэ) |
 | Version | `1.3` (Android-ийн `versionName`-тэй ижил байлгавал ойлгомжтой) |
 | Build | `1`, дараагийн upload бүрд нэгээр нэмнэ |
 | Minimum Deployments | iOS 15.0 (Capacitor 8-ийн доод хэмжээ) |

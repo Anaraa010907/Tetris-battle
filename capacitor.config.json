@@ -1,6 +1,6 @@
 {
-  "appId": "com.anaraa.neonduel",
-  "appName": "Neon Duel",
+  "appId": "com.anaraa.khanblocks",
+  "appName": "Khan Blocks",
   "webDir": "www",
   "backgroundColor": "#070c1b",
   "ios": {

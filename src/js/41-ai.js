@@ -1,5 +1,5 @@
 /* ---------- AI ---------- */
-// Scores a placement (El-Tetris weights) and returns the board after it.
+// Scores a placement (Dellacherie-style heuristic weights) and returns the board after it.
 // style 0: survive, 1: also likes quads, 2: builds a right-side well for quads and looks one piece ahead.
 function evalPlace(cells,m,x,y,style,pend){
   const g=cells.map(r=>r.slice());let top=H,bottom=0;

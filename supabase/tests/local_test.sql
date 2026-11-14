@@ -27,7 +27,7 @@ select pg_temp.expect((select username from profiles where id = :u1) = 'Анар
 select pg_temp.expect((select username from profiles where id = :u2) = 'NOMAD', 'default name');
 select pg_temp.expect((select username ~ '^анар[0-9]{4}$' from profiles where id = :u3), 'duplicate name (any case) gets a number');
 select pg_temp.expect((select username ~ '^NOMAD' from profiles where id = :u4), 'unsafe name replaced');
-select pg_temp.expect(rank_letter(1000) = 'B-' and rank_title(1000) = 'Харцага' and rank_letter(2100) = 'X' and rank_title(600) = 'Шинэ бөх', 'rank helpers');
+select pg_temp.expect(rank_letter(1000) = 'B-' and rank_title(1000) = 'Зуут' and rank_letter(2100) = 'X' and rank_title(600) = 'Цэрэг' and rank_title(2100) = 'Их хаан' and rank_title(1400) = 'Түмэн', 'rank helpers');
 select pg_temp.expect(title_index(600) = 0 and title_index(1000) = 2 and title_index(1399) = 3 and title_index(1400) = 4 and title_index(2500) = 7, 'title index');
 
 -- ---------------------------------------------------------------- practice and bot results (player 1)
@@ -72,12 +72,12 @@ select pg_temp.as_user(:u1);
 select pg_temp.expect(my_position() is null, 'unplaced player has no position');
 
 -- ---------------------------------------------------------------- matchmaking by title
-select pg_temp.as_user(:u2);                                   -- Гарьд (1400)
+select pg_temp.as_user(:u2);                                   -- Түмэн (1400)
 select pg_temp.expect((select m.id is null from find_match('single') m), 'first player waits in queue');
 select pg_temp.as_user(:u1);                                   -- Харцага (1012)
 select pg_temp.expect((select m.id is null from find_match('single') m), 'a different title is not paired at first');
 select pg_temp.as_user(:u3);                                   -- Харцага (1000)
-select pg_temp.expect((select m.player_a = :u1 and m.player_b = :u3 and m.target = 1 from find_match('single') m), 'same title is paired, ahead of the earlier Гарьд');
+select pg_temp.expect((select m.player_a = :u1 and m.player_b = :u3 and m.target = 1 from find_match('single') m), 'same title is paired, ahead of the earlier Түмэн');
 select pg_temp.expect((select count(*) = 1 from online_matches), 'players see their match');
 select pg_temp.as_user(:u1);
 select pg_temp.expect((select m.player_b = :u3 from find_match('single') m), 'waiting player gets the same match');

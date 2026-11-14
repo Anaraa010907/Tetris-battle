@@ -7,11 +7,11 @@ plugins {
 def keystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
 
 android {
-    namespace 'com.anaraa.neonduel'
+    namespace 'com.anaraa.khanblocks'
     compileSdk 36
 
     defaultConfig {
-        applicationId 'com.anaraa.neonduel'
+        applicationId 'com.anaraa.khanblocks'
         minSdk 24
         targetSdk 36
         // The release workflow sets NEON_VERSION_CODE so every upload to Google Play gets a higher number.

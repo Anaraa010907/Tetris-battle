@@ -1,0 +1,38 @@
+{
+  "en": {
+    "tWarrior": "Warrior",
+    "tArban": "Arban",
+    "tZuun": "Zuun",
+    "tMingghan": "Mingghan",
+    "tTumen": "Tumen",
+    "tGeneral": "General",
+    "tKhan": "Khan",
+    "tGreatKhan": "Great Khan",
+    "tWarriorD": "A new rider in the khan's army",
+    "tArbanD": "Leads 10 riders",
+    "tZuunD": "Leads 100 riders",
+    "tMingghanD": "Leads 1,000 riders",
+    "tTumenD": "Leads 10,000 riders",
+    "tGeneralD": "Commands the tumens",
+    "tKhanD": "Rules a khanate",
+    "tGreatKhanD": "Khan of khans"
+  },
+  "mn": {
+    "tWarrior": "Цэрэг",
+    "tArban": "Аравт",
+    "tZuun": "Зуут",
+    "tMingghan": "Мянгат",
+    "tTumen": "Түмэн",
+    "tGeneral": "Жанжин",
+    "tKhan": "Хаан",
+    "tGreatKhan": "Их хаан",
+    "tWarriorD": "Хааны цэрэгт дөнгөж элссэн",
+    "tArbanD": "10 цэргийн дарга",
+    "tZuunD": "100 цэргийн дарга",
+    "tMingghanD": "1 000 цэргийн дарга",
+    "tTumenD": "10 000 цэргийн дарга",
+    "tGeneralD": "Түмэн цэргийг удирдана",
+    "tKhanD": "Хаант улсаа захирна",
+    "tGreatKhanD": "Хаадын хаан"
+  }
+}
