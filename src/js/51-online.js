@@ -42,7 +42,8 @@ const RT={
 const Net={
   // poll: matchmaking poll; botAfter: when the bot offer appears; noShow: wait for an opponent who never connects;
   // silent: opponent silence before claiming the series (the server requires 30 s); keepalive/ping: in-game beats
-  cfg:{poll:2000,botAfter:10000,noShow:14000,silent:31000,lagNote:6000,keepalive:1000,ping:4000},
+  // friendNoShow: a friend may still be in another app (sharing the code), so a friendly match waits longer
+  cfg:{poll:2000,botAfter:10000,noShow:14000,friendNoShow:60000,silent:31000,lagNote:6000,keepalive:1000,ping:4000},
   tok:0,phase:'',match:null,opp:null,iAmA:false,loop:0,ui:0,pollT:0,since:0,fails:0,t0:0,
   seenOpp:false,goAt:0,pinged:false,lastHi:0,
   seq:0,out:[],lastIn:0,lastSent:0,lastHeard:0,lastPing:0,lastTry:0,lastClaim:0,died:0,oppDeadAt:0,busy:false,
@@ -82,7 +83,11 @@ const Net={
     };
     poll();
   },
-  cancel(){const was=this.phase;this.stop();closeModal();if(was==='search'&&Cloud.ready())Cloud.rpc('cancel_queue').catch(()=>{})},
+  cancel(){
+    const was=this.phase;this.stop();closeModal();
+    if(was==='search'&&Cloud.ready())Cloud.rpc('cancel_queue').catch(()=>{});
+    if(was==='room'&&Cloud.ready())Cloud.rpc('cancel_room').catch(()=>{});        // a friend room (52-friends)
+  },
 
   // ---- 2. opponent found: open the live channel, say hello, count down
   async found(m){
@@ -95,7 +100,7 @@ const Net={
     if(tok!==this.tok)return;
     o=this.opp=o||{username:'?',avatar:'',rating:1000,wins:0,losses:0};
     const side=(bdg,name,sub)=>'<div class="rkside">'+bdg+'<b>'+esc(name)+'</b><span class="muted">'+sub+'</span></div>';
-    modal('<span class="eyebrow">'+t('rankPlay')+' · '+t(m.target>1?'fmtFt3':'fmtSingle')+'</span><h2>'+t('foundOpp')+'</h2>'
+    modal('<span class="eyebrow">'+t(m.ranked===false?'friendPlay':'rankPlay')+' · '+t(m.target>1?'fmtFt3':'fmtSingle')+'</span><h2>'+t('foundOpp')+'</h2>'
       +'<div class="rkvs">'+side(myBadge(44),profile.name,profile.rank+' RP')+'<i>VS</i>'
       +side(o.wins+o.losses>=PLACEMENT?badge(rankOf(o.rating)[0],titleColor(o.rating),44):badge('?','#8ea2c2',44),o.username,(o.rating|0)+' RP')+'</div>'
       +'<p class="rkgo" id="rkStatus">'+t('connecting')+'</p>');
@@ -107,14 +112,14 @@ const Net={
     this.phase='live';
     rivalRating=o.rating|0;rivalCfg=DIFFS[1];
     setRival(o.username,o.wins+o.losses>=PLACEMENT?rankOf(o.rating)[0]:'?');
-    series=newSeries('online',m.target,{matchId:m.id,seed:Number(m.seed)||1,game:m.game||1});
+    series=newSeries(m.ranked===false?'friend':'online',m.target,{matchId:m.id,seed:Number(m.seed)||1,game:m.game||1});
     closeModal();
     startRound();
   },
   fail(key){
     const on=isOnline(),m=this.match;
     if(key==='rtFail'&&m)Cloud.rpc('leave_unstarted',{p_match:m.id}).catch(()=>{});   // free the opponent at once
-    this.stop();if(on)leaveMatch();againBox(t(key));
+    this.stop();if(on)leaveMatch();againBox(t(key),!!m&&m.ranked===false);
   },
 
   // ---- 3. the beat: hello and countdown first, then keepalives, heartbeats and timeouts
@@ -127,11 +132,11 @@ const Net={
         const left=Math.ceil((this.goAt-now)/1000);
         if(left<=0){this.begin();return}
         if($('rkStatus'))$('rkStatus').textContent=left;
-      }else if(now-this.t0>this.cfg.noShow&&now-this.lastClaim>4000){
+      }else if(now-this.t0>(m.ranked===false?this.cfg.friendNoShow:this.cfg.noShow)&&now-this.lastClaim>4000){
         this.lastClaim=now;
         if(!this.pinged){this.fail('rtFail');return}                       // our own live connection never opened
         Cloud.rpc('claim_abandoned',{p_match:m.id}).then(r=>this.onRow(r)).catch(()=>{});
-      }
+      }else if(m.ranked===false&&!this.seenOpp&&now-this.t0>3000&&$('rkStatus'))$('rkStatus').textContent=t('friendWaiting');
       return;
     }
     if(this.phase!=='live'||!isOnline())return;
@@ -215,11 +220,11 @@ const Net={
     const won=row.winner===this.myId();
     if(this.phase==='handshake'||this.phase==='countdown'){
       if(row.status==='abandoned')this.fail('oppNoShow');
-      else if(row.status==='finished'){this.stop();sync(true);againBox(t(won?'oppLeft':'youLeft'))}
+      else if(row.status==='finished'){this.stop();sync(true);againBox(t(won?'oppLeft':'youLeft'),row.ranked===false)}
       return;
     }
     const s=series;
-    if(this.phase!=='live'||!s||s.mode!=='online'||s.done)return;
+    if(this.phase!=='live'||!s||!isOnline()||s.done)return;
     const me=this.iAmA?row.score_a:row.score_b,foe=this.iAmA?row.score_b:row.score_a;
     if(row.status!=='active'){
       s.done=true;s.won=won;
@@ -257,18 +262,19 @@ async function openRank(){
 // No server (not set up yet, or unreachable): a ranked game against a bot of the player's own level.
 function offlineRank(netProblem){
   modal('<span class="eyebrow">'+t('rankPlay')+'</span><h2>'+t(netProblem?'rankNoNet':'rankOffline')+'</h2><p class="muted">'+t('rankBotNote')+'</p>'
-    +'<div class="stack"><button class="primary" id="rkBot">'+t('playBot')+'</button><button id="rkCancel">'+t('cancel')+'</button></div>');
+    +'<div class="stack"><button class="primary" id="rkBot">'+t('playBot')+'</button><button id="rkFriend">'+t('friendPlay')+'</button><button id="rkCancel">'+t('cancel')+'</button></div>');
   $('rkBot').onclick=()=>{closeModal();startBotRanked()};
+  $('rkFriend').onclick=openFriend;
   $('rkCancel').onclick=closeModal;
 }
-function againBox(text){
-  modal('<p>'+esc(text)+'</p><div class="stack"><button class="primary" id="agYes">'+t('searchAgain')+'</button><button id="agNo">'+t('done')+'</button></div>');
-  $('agYes').onclick=()=>{closeModal();openRank()};
+function againBox(text,friend){
+  modal('<p>'+esc(text)+'</p><div class="stack"><button class="primary" id="agYes">'+t(friend?'friendPlay':'searchAgain')+'</button><button id="agNo">'+t('done')+'</button></div>');
+  $('agYes').onclick=()=>{closeModal();friend?openFriend():openRank()};
   $('agNo').onclick=closeModal;
 }
 // An online game cannot be paused: the button offers to give up instead, while the game keeps running.
 function forfeitDialog(){
-  modal('<h2>'+t('forfeitAsk')+'</h2><p class="muted" id="ffMsg">'+t('forfeitNote')+'</p><div class="stack"><button class="primary" id="ffNo">'+t('resume')+'</button><button id="ffYes">'+t('forfeit')+'</button></div>');
+  modal('<h2>'+t('forfeitAsk')+'</h2><p class="muted" id="ffMsg">'+t(series&&series.mode==='friend'?'forfeitNoteFriend':'forfeitNote')+'</p><div class="stack"><button class="primary" id="ffNo">'+t('resume')+'</button><button id="ffYes">'+t('forfeit')+'</button></div>');
   $('ffNo').onclick=closeModal;
   $('ffYes').onclick=async()=>{
     if(!isOnline()){closeModal();return}

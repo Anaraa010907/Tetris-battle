@@ -1,0 +1,5 @@
+/* play with a friend (52-friends): the code uses the existing .rktime style; only size and spacing here */
+#modal button.primary small{color:inherit;opacity:.75}
+#modal .fcode{color:inherit;font-size:48px;letter-spacing:10px;text-indent:10px;margin:14px 0 4px;-webkit-user-select:all;user-select:all}
+.fcenter{text-align:center;margin:4px 0 12px;min-height:20px}
+#modal input.fcodein{margin:14px 0 2px;text-align:center;font-size:34px;font-weight:800;letter-spacing:8px;text-transform:uppercase;padding:12px}

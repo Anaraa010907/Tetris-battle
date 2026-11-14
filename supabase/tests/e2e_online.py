@@ -15,7 +15,7 @@ superuser. Settings come from the environment:
     E2E_OUT                                                   - folder for screenshots (default: a temp folder)
 
     python3 supabase/tests/e2e_online.py            # everything
-    python3 supabase/tests/e2e_online.py S2 S6      # the first scenario plus the named ones
+    python3 supabase/tests/e2e_online.py S2 S6      # the first scenario plus the named ones (S1-S8; S8: friend rooms)
 """
 import asyncio, glob, json, os, random, re, subprocess, sys, tempfile
 from playwright.async_api import async_playwright
@@ -31,7 +31,7 @@ os.makedirs(OUT, exist_ok=True)
 open(TEST, 'w', encoding='utf-8').write(open(SRC, encoding='utf-8').read().replace(
     '{"supabaseUrl":"","supabaseAnonKey":""}', '{"supabaseUrl":"https://test.supabase.co","supabaseAnonKey":"anon-key"}'))
 CORS = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*'}
-VOID = {'cancel_queue', 'delete_my_account'}
+VOID = {'cancel_queue', 'delete_my_account', 'cancel_room'}
 SCALAR = {'my_position'}
 net = {'drop': 0.0, 'latency': 0.06, 'sent': 0, 'dropped': 0}
 rpc_log = []
@@ -192,11 +192,13 @@ async def main():
         # ---------------------------------------------------------------- S1: search, handshake, live sync, result
         print('S1 single game', flush=True)
         await A.pg.click('#ranked')
+        await A.pg.click('#rkFind')                     # Rank opens a small menu: find a player / play a friend
         await A.wait("Net.phase==='search'")
         await asyncio.sleep(1.2)
         await A.shot('o_search.png')
         check('A waits alone in the queue', psql("select count(*) from match_queue") == '1')
         await B.pg.click('#ranked')
+        await B.pg.click('#rkFind')
         await B.wait("Net.phase==='handshake'||Net.phase==='countdown'")
         await A.wait("Net.phase==='handshake'||Net.phase==='countdown'")
         await B.pg.wait_for_selector('#rkStatus')
@@ -293,6 +295,7 @@ async def main():
             await A.js("Net.cfg.silent=31000;Net.cfg.lagNote=6000;leaveMatch()")
 
         C = await Player('Тэмүүлэн').start(br)
+        extra = []
         if not ONLY or 'S4' in ONLY:
             # ------------------------------------------------------------ S4: opponent never connects
             print('S4 no-show', flush=True)
@@ -370,7 +373,113 @@ async def main():
             check('the waiting opponent is released without a result', await A.js("$('modal').textContent.includes(t('oppNoShow'))")
                   and psql("select status from online_matches order by created_at desc limit 1") == 'abandoned')
 
-        errs = A.errs + B.errs + C.errs
+        if not ONLY or 'S8' in ONLY:
+            # ------------------------------------------------------------ S8: play a friend by code (unranked)
+            print('S8 friend room', flush=True)
+            E = await Player('Энхжин').start(br)            # B's connection was cut on purpose in S3
+            extra.append(E)
+            for p in (A, E, C):
+                await p.js("Net.stop();if(state!=='title')leaveMatch();closeModal();Net.cfg.noShow=14000;profile.fmt='single';save()")
+            prof = lambda p: psql("select rating||' '||wins||' '||losses||' '||coins from profiles where id='%s'" % p.uid)
+            before = {p.name: prof(p) for p in (A, E)}
+            local = lambda p: p.js("[profile.rank,profile.wins,profile.losses,profile.coins]")
+            local_before = {p.name: await local(p) for p in (A, E)}
+            await A.pg.click('#ranked')
+            await A.pg.click('#rkFriend')
+            await A.pg.click('#fCreate')
+            await A.wait("Net.phase==='room'&&!!$('fCode')")
+            code = await A.js("$('fCode').textContent")
+            check('room code shown to the creator (6 characters, no 0/O/1/I/L)', re.fullmatch(r'[A-HJKMNP-Z2-9]{6}', code), code)
+            await asyncio.sleep(0.6)
+            await A.shot('f_code.png')
+            check('the creator cannot join their own room', await A.js("Cloud.rpc('join_room',{p_code:%s}).then(()=>'joined',e=>e.message)" % json.dumps(code)) == 'own_room')
+            await E.pg.click('#ranked')
+            await E.pg.click('#rkFriend')
+            await E.pg.click('#fJoin')
+            await E.pg.fill('#fCodeIn', 'QQQQQQ')
+            await E.pg.click('#fJoinGo')
+            await E.wait("$('fMsg').textContent===t('friendNotFound')")
+            check('wrong code: told so', True)
+            await E.pg.fill('#fCodeIn', '')
+            await E.pg.type('#fCodeIn', code[:3].lower() + ' - ' + code[3:].lower())
+            check('typed code is cleaned (case, spaces, dash)', await E.js("$('fCodeIn').value") == code, await E.js("$('fCodeIn').value"))
+            await E.shot('f_join.png')
+            await E.pg.click('#fJoinGo')
+            await A.wait("Net.phase==='handshake'||Net.phase==='countdown'", 8000)
+            check('found screen says friendly match', await A.js("$('modal').textContent.includes(t('friendPlay'))"))
+            for p in (A, E): await p.wait("Net.phase==='live'&&state==='play'", 20000)
+            fm = psql("select id||' '||ranked::text||' '||(player_a='%s')::text from online_matches order by created_at desc limit 1" % A.uid).split()
+            check('both in a friendly match; the creator hosts; the server row is unranked',
+                  await A.js("series.mode") == 'friend' and await E.js("series.mode") == 'friend' and fm[1:] == ['false', 'true'], fm)
+            await C.js("friendJoin()")
+            await C.pg.fill('#fCodeIn', code)
+            await C.pg.click('#fJoinGo')
+            await C.wait("$('fMsg').textContent===t('friendTaken')")
+            check('a third player cannot take the room', True)
+            await C.js("closeModal()")
+            await A.pg.evaluate(AI, 4)
+            await asyncio.sleep(0.5)
+            check("live boards are shared as in ranked", await A.js("JSON.stringify(boards[0].cells)") == await E.js("JSON.stringify(boards[1].cells)"))
+            await E.js(TOPOUT)
+            for p in (A, E): await p.wait("state==='result'", 10000)
+            await asyncio.sleep(1.0)
+            ra = await A.js("({eb:$('resultEyebrow').textContent,chip:$('resultStats').firstElementChild.textContent,won:series.won,tag:t('friendTag'),norp:t('friendNoRp')})")
+            check('result screen: friendly match, no RP or coins', ra['eb'].startswith(ra['tag']) and ra['norp'] in ra['chip'] and ra['won'] is True, ra)
+            check('no rating, record or coin change on the server', all(prof(p) == before[p.name] for p in (A, E)), [prof(A), prof(E), before])
+            check('no change on the phones either', [await local(p) for p in (A, E)] == [local_before[p.name] for p in (A, E)])
+            check('history rows marked friend', psql("select count(*)||' '||bool_and(rating_before=rating_after and coins=0)::text from matches where kind='friend'") == '2 true')
+            await A.shot('f_result.png')
+            # rematch: both press it on the result screen
+            await A.pg.click('#rematch')
+            await A.wait("Net.phase==='room'")
+            await asyncio.sleep(2.3)
+            await A.shot('f_rematch_wait.png')
+            await E.pg.click('#rematch')
+            for p in (A, E): await p.wait("Net.phase==='live'&&state==='play'", 20000)
+            rm = psql("select id||' '||ranked::text from online_matches order by created_at desc limit 1").split()
+            check('rematch: a new friendly match with the same friend', rm[0] != fm[0] and rm[1] == 'false' and await A.js("series.mode") == 'friend')
+            await A.pg.click('#pause')
+            check('give-up note says the rank is not affected', await A.js("$('ffMsg').textContent===t('forfeitNoteFriend')"))
+            await A.pg.click('#ffYes')
+            for p in (A, E): await p.wait("state==='result'", 12000)
+            check('giving up a friendly match changes nothing', all(prof(p) == before[p.name] for p in (A, E)) and await E.js("series.reason") == 'oppLeft')
+            for p in (A, E): await p.js("leaveMatch()")
+            # an expired code
+            await A.js("openFriend()")
+            await A.wait("!!$('fCreate')")
+            await A.pg.click('#fCreate')
+            await A.wait("Net.phase==='room'&&!!$('fCode')")
+            code2 = await A.js("$('fCode').textContent")
+            psql("update friend_rooms set expires_at=now()-interval '1 second' where code='%s'" % code2)
+            await E.js("friendJoin()")
+            await E.pg.fill('#fCodeIn', code2)
+            await E.pg.click('#fJoinGo')
+            await E.wait("$('fMsg').textContent===t('friendExpired')")
+            await A.wait("!!$('fNew')", 6000)
+            check('expired code: the joiner is told, the creator is offered a new code', True)
+            await A.pg.click('#fNew')
+            await A.wait("Net.phase==='room'&&!!$('fCode')")
+            check('new code', await A.js("$('fCode').textContent") != code2)
+            await A.js("window.onAndroidBack()")
+            await asyncio.sleep(0.5)
+            check('back cancels the room', await A.js("Net.phase===''&&$('modal').hidden") and
+                  psql("select status from friend_rooms where creator='%s' order by created_at desc limit 1" % A.uid) == 'closed')
+            await E.js("closeModal()")
+            # the friend never connects
+            ghost = psql("insert into auth.users (raw_user_meta_data) values ('{\"username\":\"Ghost2\"}') returning id")
+            gcode = psql("set role authenticated; select set_config('request.jwt.claim.sub','%s',false); select code from create_room('single')" % ghost)
+            await C.js("Net.cfg.friendNoShow=2500;friendJoin()")
+            await C.pg.fill('#fCodeIn', gcode)
+            await C.pg.click('#fJoinGo')
+            await C.wait("Net.phase==='handshake'")
+            psql("update online_matches set created_at=created_at-interval '20 seconds', seen_a=seen_a-interval '20 seconds' where player_a='%s'" % ghost)
+            await C.wait("Net.phase===''&&!!$('agYes')", 15000)
+            check('friend never connects: told, nothing counted, offered friend play again',
+                  await C.js("$('modal').textContent.includes(t('oppNoShow'))&&$('agYes').textContent===t('friendPlay')")
+                  and psql("select status from online_matches where player_a='%s'" % ghost) == 'abandoned')
+            await C.js("Net.cfg.friendNoShow=60000;closeModal()")
+
+        errs = A.errs + B.errs + C.errs + sum((p.errs for p in extra), [])
         print('page errors:', errs or 'none')
         fails = [k for k, v in R.items() if v != 'ok']
         print('RESULT: %d checks, %d failed %s' % (len(R), len(fails), fails))
