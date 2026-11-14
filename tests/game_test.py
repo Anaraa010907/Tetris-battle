@@ -825,6 +825,7 @@ async def look(br):
     await pg.evaluate("closeModal()")
     # effects: a quad bursts, flashes and sends an orb to the rival meter; the rival's attack flies to mine
     await pg.evaluate("profile.fmt='single';startPractice()"); await pg.evaluate(FREEZE)
+    await pg.wait_for_timeout(150)   # let the first frame see the new game (fxFrame clears effects once per new game)
     QUAD = """(()=>{const b=boards[%d];b.cells=Array.from({length:20},emptyRow);for(let y=16;y<20;y++){b.cells[y]=Array(10).fill(5);b.cells[y][9]=0}
       b.cells[15][0]=3;b.piece={id:0,r:1,m:ROT[0][1],x:7,y:0};b.garbage=[];hard(b);return fxParts.reduce((a,p)=>(a[p.k]=(a[p.k]||0)+1,a),{})})()"""
     r = await pg.evaluate(QUAD % 0)
