@@ -2,12 +2,12 @@
 function step(dt){
   if(state!=='play')return;
   tick++;
-  if(heldAction){holdTime+=dt;if(holdTime>=holdNext){action(heldAction);holdNext+=.085}}
+  handling(dt);                                   // held buttons and keys (43-handling)
   if(actionTime>0)actionTime-=dt;
   for(const v of boards){v.time+=dt;v.slow=Math.max(0,v.slow-dt);for(const g of v.garbage)g.delay-=dt}
   const b=boards[0];
   // gravity starts gentle and speeds up every 20 seconds
-  const fall=Math.max(param('minFall'),param('fallSeconds')*Math.pow(.92,Math.floor(b.time/20)));
+  const fall=fallTime(b);
   b.fall+=dt;
   if(b.fall>=fall){b.fall-=fall;if(!hit(b,b.piece.m,b.piece.x,b.piece.y+1))move(b,0,1)}
   if(hit(b,b.piece.m,b.piece.x,b.piece.y+1)){b.grounded+=dt;if(b.grounded>=LOCK_DELAY)lock(b)}

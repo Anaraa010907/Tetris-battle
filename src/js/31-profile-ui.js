@@ -49,7 +49,7 @@ function stats(){
       };
     }else $('logout').onclick=async()=>{
       await Cloud.signOut();outbox=[];saveOutbox();
-      profile=freshProfile({diff:profile.diff,lang:profile.lang,fmt:profile.fmt,powers:profile.powers,sound:profile.sound,vibration:profile.vibration});
+      profile=freshProfile({diff:profile.diff,lang:profile.lang,fmt:profile.fmt,powers:profile.powers,sound:profile.sound,vibration:profile.vibration,ctl:profile.ctl});
       save();translate();await sync(true);stats();
     };
     return;

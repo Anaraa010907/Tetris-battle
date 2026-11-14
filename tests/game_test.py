@@ -2,7 +2,7 @@
 """Browser tests for the built index.html (rules, touch controls, game flows, the offline and cloud paths).
 
     python3 tests/game_test.py                 all groups
-    python3 tests/game_test.py rules flows     only the named groups: rules, touch, flows, cloud
+    python3 tests/game_test.py rules flows     only the named groups: rules, touch, flows, cloud, controls, friends
 
 Environment: CHROME (browser binary, default: Playwright's Chromium), TEST_OUT (screenshot folder).
 Exit code 1 when a check fails or the page throws. Checks read state through the game's own globals
@@ -14,7 +14,8 @@ from playwright.async_api import async_playwright
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGE = os.path.join(ROOT, 'index.html')
 OUT = os.path.join(os.environ.get('TEST_OUT') or tempfile.mkdtemp(prefix='neon-test-'), '')
-GROUPS = [g for g in sys.argv[1:] if not g.startswith('-')] or ['rules', 'touch', 'flows', 'cloud']
+os.makedirs(OUT, exist_ok=True)
+GROUPS = [g for g in sys.argv[1:] if not g.startswith('-')] or ['rules', 'touch', 'flows', 'cloud', 'controls', 'friends']
 R, ERRS = {}, []
 
 
@@ -386,7 +387,7 @@ async def cloud(br):
     await pg.click('#shopDone')
     net['down'] = True
     await pg.evaluate("Cloud.state='offline';netView()")
-    await pg.click('#ranked'); await pg.wait_for_timeout(1500)
+    await pg.click('#ranked'); await pg.click('#rkFind'); await pg.wait_for_timeout(1500)
     check('Rank with the server down: told so, bot offered', await pg.evaluate("$('modal').textContent.includes(t('rankNoNet'))&&!!$('rkBot')"))
     await pg.click('#rkBot'); await pg.wait_for_timeout(200)
     await pg.evaluate("finishRound(boards[1])"); await wait(pg, "state==='result'", 6000); await pg.wait_for_timeout(1500)
@@ -404,6 +405,283 @@ async def cloud(br):
     await pg.click('#statsDone')
     await pg.click('#settings'); await pg.click('#delete'); await pg.click('#yesDelete'); await pg.wait_for_timeout(900)
     check('delete removes the server account', any(c[0].endswith('delete_my_account') for c in calls) and await pg.evaluate("[profile.rank,profile.wins]") == [1000, 0])
+    await ctx.close()
+
+
+# ====================================================================== controls (DAS, ARR, soft drop, touch, layout)
+STEP = "(n)=>{for(let i=0;i<n;i++)step(1/60);const p=boards[0].piece;return [p.x,p.y]}"    # n game ticks of 1/60 s
+FRESH = "(()=>{const b=boards[0];b.cells=Array.from({length:20},emptyRow);b.garbage=[];place(b,2);b.time=0;b.fall=0;releaseAll();return [b.piece.x,b.piece.y]})()"
+FLICK = """(()=>{const el=$('board'),s=parseFloat($('world').style.transform.slice(6)),r=$('world').getBoundingClientRect();
+  const P=(type,y)=>el.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:7,pointerType:'touch',isPrimary:true,clientX:r.left+140*s,clientY:r.top+y*s}));
+  P('pointerdown',300);P('pointermove',380);P('pointermove',460);P('pointermove',620);P('pointerup',620);
+  return [boards[0].cells.flat().filter(v=>v).length,boards[0].piece.y]})()"""
+SLIDE = """(()=>{const el=$('board'),s=parseFloat($('world').style.transform.slice(6)),r=$('world').getBoundingClientRect(),x0=boards[0].piece.x;
+  const P=(type,x)=>el.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:8,pointerType:'touch',isPrimary:true,clientX:r.left+x*s,clientY:r.top+300*s}));
+  P('pointerdown',60);for(let x=70;x<=143;x+=8)P('pointermove',x);P('pointermove',143);P('pointerup',143);return boards[0].piece.x-x0})()"""
+
+
+async def controls(br):
+    print('controls', flush=True)
+    bad = {'das': 'fast', 'arr': -5, 'sdf': 7, 'sens': 'x', 'flick': 'no', 'buttons': 0, 'mirror': 1, 'size': 'huge'}
+    ctx, pg = await new_page(br)                       # no init script: this test reloads the page and must keep what it saved
+    await pg.goto('file://' + PAGE)
+    await pg.evaluate("localStorage.setItem('neon-duel',%s)" % json.dumps(json.dumps({'name': 'Тест', 'ctl': bad})))
+    await pg.reload()
+    r = await pg.evaluate("profile.ctl")
+    check('invalid saved control settings fall back to the defaults', r == {'das': 170, 'arr': 50, 'sdf': 20, 'sens': 'normal', 'flick': True,
+                                                                            'buttons': True, 'mirror': False, 'size': 'normal'}, r)
+    r = await pg.evaluate("ctlClean({das:120,arr:0,sdf:0,sens:'high',mirror:true,size:'large',buttons:false,flick:false,extra:1})")
+    check('valid control settings are kept, unknown keys dropped', r == {'das': 120, 'arr': 0, 'sdf': 0, 'sens': 'high', 'flick': False,
+                                                                        'buttons': False, 'mirror': True, 'size': 'large'}, r)
+    check('existing players keep the button layout and gestures', await pg.evaluate(
+        "!$('controls').hidden&&!$('controls').classList.contains('mirror')&&!$('controls').classList.contains('big')&&G.step===26&&G.row===28&&$('hint').dataset.t==='hint'"))
+    # the game clock is driven by hand from here: no animation frames, gravity and the AI stopped
+    await pg.evaluate("profile.fmt='single';startPractice()")
+    await pg.evaluate(FREEZE + ";cancelAnimationFrame(raf);raf=0")
+    # --- held on-screen button: DAS 170 ms, then ARR 50 ms
+    x0, _ = await pg.evaluate(FRESH)
+    box = await pg.locator('#controls button[data-action="right"]').bounding_box()
+    await pg.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+    await pg.mouse.down()
+    xs = [await pg.evaluate("boards[0].piece.x")]
+    for n in (9, 2, 2, 1, 3, 6):                       # ticks: 150 ms, 183, 217, 233, 283, 383
+        xs.append((await pg.evaluate(STEP, n))[0])
+    check('held button: one step, DAS 170 ms, then one step per 50 ms up to the wall', [x - x0 for x in xs] == [1, 1, 2, 2, 3, 4, 4], [x - x0 for x in xs])
+    await pg.mouse.up()
+    check('releasing the button stops the repeat', await pg.evaluate("!anyHeld()&&heldAction===''"))
+    x0, _ = await pg.evaluate(FRESH)
+    check('no movement after release', (await pg.evaluate(STEP, 30))[0] == x0)
+    # --- keyboard: own repeat, the OS key repeat is ignored; ARR 0 goes straight to the wall
+    await pg.evaluate("profile.ctl.das=100;profile.ctl.arr=0")
+    x0, _ = await pg.evaluate(FRESH)
+    await pg.keyboard.down('ArrowLeft')
+    a = await pg.evaluate("boards[0].piece.x")
+    for _ in range(4):
+        await pg.keyboard.down('ArrowLeft')            # Playwright sends these with repeat=true, like an OS key repeat
+    b = await pg.evaluate("boards[0].piece.x")
+    c = (await pg.evaluate(STEP, 5))[0]                 # 83 ms < DAS
+    d = (await pg.evaluate(STEP, 2))[0]                 # 117 ms: DAS charged, ARR 0
+    await pg.keyboard.up('ArrowLeft')
+    check('keyboard: one step per press, OS repeats ignored, DAS 100 ms then ARR 0 to the wall', [x0 - a, x0 - b, x0 - c, d] == [1, 1, 1, 0], [x0, a, b, c, d])
+    await pg.evaluate("profile.ctl.das=170;profile.ctl.arr=50")
+    x0, _ = await pg.evaluate(FRESH)
+    await pg.keyboard.down('ArrowRight')
+    await pg.evaluate(STEP, 12)                         # right is charged (+2)
+    await pg.mouse.move(*(lambda bb: (bb['x'] + bb['width'] / 2, bb['y'] + bb['height'] / 2))(await pg.locator('#controls button[data-action="left"]').bounding_box()))
+    await pg.mouse.down()                               # the newer direction wins at once
+    e = await pg.evaluate("boards[0].piece.x")
+    await pg.mouse.up()                                 # back to the held key, which charges its DAS again
+    f = (await pg.evaluate(STEP, 9))[0]
+    g = (await pg.evaluate(STEP, 3))[0]
+    await pg.keyboard.up('ArrowRight')
+    check('newest direction wins; letting go hands back to the key, DAS again', [e - x0, f - x0, g - x0] == [1, 1, 2], [x0, e, f, g])
+    # --- soft drop: one row at once, then factor x gravity (0.8 s per row at the start), never locks
+    soft = []
+    for sdf, key in ((20, 'button'), (5, 'button'), (10, 'key'), (0, 'button')):
+        await pg.evaluate("window.MABLE_PARAMS.fallSeconds=0.8;profile.ctl.sdf=%d" % sdf)
+        _, y0 = await pg.evaluate(FRESH)
+        if key == 'key':
+            await pg.keyboard.down('ArrowDown')
+        else:
+            bb = await pg.locator('#controls button[data-action="soft"]').bounding_box()
+            await pg.mouse.move(bb['x'] + bb['width'] / 2, bb['y'] + bb['height'] / 2)
+            await pg.mouse.down()
+        y = (await pg.evaluate(STEP, 18))[1] - y0       # 0.3 s
+        locked = await pg.evaluate("boards[0].cells.flat().filter(v=>v).length")
+        await (pg.keyboard.up('ArrowDown') if key == 'key' else pg.mouse.up())
+        soft.append([y, locked])
+    check('soft drop speeds: x20, x5, x10 (keyboard), instant to the floor; no lock', soft == [[8, 0], [2, 0], [4, 0], [18, 0]], soft)
+    await pg.evaluate("window.MABLE_PARAMS.fallSeconds=1000;profile.ctl.sdf=20")
+    # --- touch sensitivity and the flick switch
+    sl = []
+    for sens in ('normal', 'high', 'low'):
+        await pg.evaluate("profile.ctl.sens='%s';applyControls()" % sens)
+        await pg.evaluate(FRESH)
+        sl.append(await pg.evaluate(SLIDE))
+    check('touch sensitivity: the same 83 px slide moves 3 / 4 / 2 columns', sl == [3, 4, 2], sl)
+    await pg.evaluate("profile.ctl.sens='normal';profile.ctl.flick=false;applyControls()")
+    await pg.evaluate(FRESH)
+    r = await pg.evaluate(FLICK)
+    check('flick drop switched off: a fast swipe only moves the piece down', r[0] == 0 and r[1] > 5, r)
+    await pg.evaluate("profile.ctl.flick=true;applyControls()")
+    await pg.evaluate(FRESH)
+    check('flick drop on again', (await pg.evaluate(FLICK))[0] == 4)
+    await pg.evaluate("raf=requestAnimationFrame(frame);leaveMatch()")
+    # --- the dialog: changes apply at once, are saved and survive a reload
+    await pg.click('#settings'); await pg.click('#ctlBtn')
+    check('controls dialog opens from settings', await pg.evaluate("!!$('dasIn')&&!!$('arrIn')"))
+    await pg.fill('#dasIn', '120'); await pg.fill('#arrIn', '0')
+    check('sliders show their value', await pg.evaluate("[$('dasVal').textContent,$('arrVal').textContent.startsWith('0')]") == ['120 ms', True])
+    for sel in ('.cseg[data-key=sdf] [data-v="0"]', '.cseg[data-key=sens] [data-v=high]', '[data-tog=flick]', '[data-tog=buttons]',
+                '[data-tog=mirror]', '.cseg[data-key=size] [data-v=large]'):
+        await pg.click(sel)
+    await pg.screenshot(path=OUT + 'controls_dialog.png')
+    want = {'das': 120, 'arr': 0, 'sdf': 0, 'sens': 'high', 'flick': False, 'buttons': False, 'mirror': True, 'size': 'large'}
+    check('dialog changes are saved', await pg.evaluate("JSON.parse(localStorage.getItem('neon-duel')).ctl") == want)
+    check('and applied at once', await pg.evaluate("$('controls').hidden&&G.step===26*.75&&$('hint').dataset.t==='hintNoFlick'"))
+    await pg.click('#ctlDone')
+    check('Done goes back to settings', await pg.evaluate("!!$('ctlBtn')"))
+    await pg.click('#saveProfile')
+    await pg.reload()
+    r = await pg.evaluate("({ctl:profile.ctl,hidden:$('controls').hidden,mirror:$('controls').classList.contains('mirror'),big:$('controls').classList.contains('big'),step:G.step,hint:$('hint').textContent===t('hintNoFlick')})")
+    check('settings survive a reload and render (gesture-only, mirrored, large)', r == {'ctl': want, 'hidden': True, 'mirror': True, 'big': True, 'step': 19.5, 'hint': True}, r)
+    await pg.evaluate("profile.ctl.buttons=true;save();applyControls();profile.fmt='single';startPractice()")
+    await pg.wait_for_timeout(200)
+    r = await pg.evaluate("""(()=>{const q=a=>document.querySelector('#controls [data-action='+a+']').getBoundingClientRect(),h=$('hint').getBoundingClientRect();
+      return {mirror:q('hard').left<q('soft').left&&q('soft').left<q('left').left&&q('left').left<q('right').left,big:q('left').height,
+              fits:Math.max(q('left').bottom,h.bottom)<=innerHeight,board:$('board').getBoundingClientRect().bottom<=q('left').top}})()""")
+    await pg.screenshot(path=OUT + 'controls_large_mirror.png')
+    check('mirrored large buttons: drops on the left, still on screen below the board', r['mirror'] and r['big'] > 65 and r['fits'] and r['board'], r)
+    await pg.evaluate("pause()")
+    await pg.click('#pauseCtl')
+    await pg.click('#ctlReset')
+    check('reset to defaults', await pg.evaluate("JSON.stringify(profile.ctl)===JSON.stringify(ctlClean())&&!$('controls').hidden&&G.step===26"))
+    await pg.click('#ctlDone')
+    check('controls from the pause menu return to it', await pg.evaluate("state==='pause'&&!!$('resume')"))
+    await pg.click('#resume')
+    await pg.evaluate("leaveMatch()")
+    r = await pg.evaluate("profile.ctl.das=90;save();profile=freshProfile({ctl:profile.ctl});profile.ctl.das")
+    check('control settings are kept when the profile is reset', r == 90)
+    await ctx.close()
+
+
+# ====================================================================== friends (rooms by code; UI and error paths)
+async def friends(br):
+    print('friends', flush=True)
+    # without a server: the Rank dialog offers friend play and says it needs the online service
+    ctx, pg = await new_page(br)
+    await pg.goto('file://' + PAGE)
+    await pg.click('#ranked')
+    check('offline Rank dialog has a friend option', await pg.evaluate("!!$('rkBot')&&!!$('rkFriend')"))
+    await pg.click('#rkFriend')
+    check('friend play without a server: needs the online service', await pg.evaluate("$('modal').textContent.includes(t('friendNeedsOnline'))"))
+    r = await pg.evaluate("[cleanCode(' k7p-2qx '),cleanCode('К7Р2QХ'),cleanCode('abcdefgh'),cleanCode('a.b/c')]")
+    check('typed codes are forgiving (case, spaces, dashes, Cyrillic look-alikes)', r == ['K7P2QX', 'K7P2QX', 'ABCDEF', 'ABC'], r)
+    FRIEND_RESULT = """(()=>{closeModal();series=newSeries('friend',1,{matchId:'m1',seed:5,game:1});rival='<b>Бат</b>';
+      boards=[makeBoard(1),makeBoard(1)];spawn(boards[0]);spawn(boards[1]);state='over';finishMatch(true)})()"""
+    before = await pg.evaluate("[profile.rank,profile.wins,profile.losses,profile.coins]")
+    await pg.evaluate(FRIEND_RESULT)
+    r = await pg.evaluate("({eb:$('resultEyebrow').textContent.startsWith(t('friendTag')),rp:$('resultStats').firstElementChild.textContent.includes(t('friendNoRp')),"
+                          "p:[profile.rank,profile.wins,profile.losses,profile.coins],out:outbox.length})")
+    check('friendly result: says so, no RP or coins, nothing changed or queued', r == {'eb': True, 'rp': True, 'p': before, 'out': 0}, r)
+    await pg.click('#rematch')
+    check('rematch without a server goes to the friend dialog', await pg.evaluate("state==='title'&&$('modal').textContent.includes(t('friendNeedsOnline'))"))
+    await ctx.close()
+
+    # with a (fake) server
+    src = open(PAGE, encoding='utf-8').read()
+    test_page = OUT + 'friends_test.html'
+    open(test_page, 'w', encoding='utf-8').write(src.replace('{"supabaseUrl":"","supabaseAnonKey":""}',
+                                                            '{"supabaseUrl":"https://test.supabase.co","supabaseAnonKey":"anon-key"}'))
+    cors = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*'}
+    fake = {'down': False, 'room': 'wait', 'rematch': 'wait', 'calls': []}
+    me = {'id': 'f1', 'username': 'Анар', 'avatar': '👑', 'rating': 1100, 'wins': 3, 'losses': 2, 'coins': 70, 'theme': 0, 'owned': [0],
+          'streak': 0, 'last_claim': None, 'imported': True}
+    join_err = {'K7P2QX': 'own_room', 'BADBAD': 'room_not_found', 'TAKEN2': 'room_taken', 'OLD234': 'room_expired'}
+
+    async def handle(route):
+        req = route.request
+        if req.method == 'OPTIONS':
+            return await route.fulfill(status=204, headers=cors)
+        if fake['down']:
+            return await route.abort()
+        path = req.url.split('supabase.co', 1)[1]
+        body = json.loads(req.post_data) if req.post_data else {}
+        ok = lambda d, st=200: route.fulfill(status=st, headers={**cors, 'Content-Type': 'application/json'}, body=json.dumps(d))
+        if path.startswith('/auth/v1/signup'):
+            return await ok({'access_token': 'tok-f1', 'refresh_token': 'r', 'expires_in': 3600, 'user': {'id': 'f1', 'is_anonymous': True}})
+        fn = path.split('/rpc/')[1] if '/rpc/' in path else path
+        fake['calls'].append((fn, body))
+        if fn == 'get_my_profile':
+            return await ok(me)
+        if fn == 'create_room':
+            now = datetime.datetime.now(datetime.timezone.utc)
+            return await ok({'code': 'K7P2QX', 'format': body['p_format'], 'status': 'open', 'created_at': now.isoformat(),
+                             'expires_at': (now + datetime.timedelta(minutes=10)).isoformat()})
+        if fn == 'room_status':
+            return await (ok({'message': 'room_expired'}, 400) if fake['room'] == 'expired' else ok({'id': None}))
+        if fn == 'join_room':
+            return await ok({'message': join_err.get(body['p_code'], 'room_not_found')}, 400)
+        if fn == 'rematch_room':
+            return await (ok({'message': 'room_expired'}, 400) if fake['rematch'] == 'gone' else ok({'id': None}))
+        if fn == 'cancel_room':
+            return await route.fulfill(status=204, headers=cors)
+        return await ok({'message': 'unknown ' + path}, 404)
+
+    ctx, pg = await new_page(br, store={'name': 'Анар', 'fmt': 'single'}, route=handle)
+    await ctx.grant_permissions(['clipboard-read', 'clipboard-write'])
+    await pg.goto('file://' + test_page)
+    await wait(pg, "Cloud.state==='online'")
+    await pg.click('#ranked')
+    check('Rank opens the online menu: find a player or play a friend', await pg.evaluate("!!$('rkFind')&&!!$('rkFriend')"))
+    await pg.click('#rkFriend')
+    await wait(pg, "!!$('fCreate')")
+    await pg.click('#fFmt')
+    check('room format can be switched in the friend dialog', await pg.evaluate("profile.fmt") == 'ft3')
+    await pg.click('#fCreate')
+    await wait(pg, "Net.phase==='room'&&!!$('fCode')")
+    check('create: big code, waiting, format sent', await pg.evaluate("$('fCode').textContent") == 'K7P2QX'
+          and [c[1] for c in fake['calls'] if c[0] == 'create_room'][-1] == {'p_format': 'ft3'})
+    await pg.evaluate("Object.defineProperty(navigator,'share',{configurable:true,value:d=>{window.__shared=d.text;return Promise.resolve()}})")
+    await pg.click('#fShare')
+    await pg.wait_for_timeout(200)
+    check('share uses the system share sheet when there is one', 'K7P2QX' in (await pg.evaluate("window.__shared||''")))
+    await pg.evaluate("Object.defineProperty(navigator,'share',{configurable:true,value:undefined})")
+    await pg.click('#fShare')
+    await pg.wait_for_timeout(300)
+    r = await pg.evaluate("navigator.clipboard.readText().then(c=>[c,$('fState').textContent===t('friendCopied')])")
+    check('otherwise the invite is copied', 'K7P2QX' in r[0] and r[1], r)
+    await pg.screenshot(path=OUT + 'friend_code.png')
+    await pg.evaluate("Net.cfg.poll=150")
+    fake['down'] = True
+    await wait(pg, "!!$('fAgain')", 8000)
+    check('network drop while waiting: told, with a retry', await pg.evaluate("Net.phase===''&&$('modal').textContent.includes(t('friendNet'))"))
+    fake['down'] = False
+    await pg.click('#fAgain')
+    await wait(pg, "!!$('fCreate')")
+    await pg.click('#fCreate')
+    await wait(pg, "Net.phase==='room'")
+    fake['room'] = 'expired'
+    await wait(pg, "!!$('fNew')", 4000)
+    check('expired room: the creator is offered a new code', await pg.evaluate("Net.phase===''&&$('modal').textContent.includes(t('friendExpiredOwn'))"))
+    fake['room'] = 'wait'
+    await pg.click('#fNew')
+    await wait(pg, "Net.phase==='room'")
+    n = len([c for c in fake['calls'] if c[0] == 'cancel_room'])
+    check('back while waiting closes the room', await pg.evaluate("window.onAndroidBack()&&Net.phase===''&&$('modal').hidden"))
+    await pg.wait_for_timeout(300)
+    check('cancel_room sent', len([c for c in fake['calls'] if c[0] == 'cancel_room']) == n + 1)
+    await pg.evaluate("openFriend()")
+    await wait(pg, "!!$('fJoin')")
+    await pg.click('#fJoin')
+    msgs = []
+    for typed in ('abc', 'k7p 2qx', 'badbad', 'taken2', 'old-234'):
+        await pg.fill('#fCodeIn', '')
+        await pg.type('#fCodeIn', typed)
+        await pg.click('#fJoinGo')
+        await pg.wait_for_timeout(300)
+        msgs.append(await pg.evaluate("[$('fCodeIn').value,$('fMsg').textContent]"))
+    want = await pg.evaluate("[['ABC',t('friendCodeShort')],['K7P2QX',t('friendOwn')],['BADBAD',t('friendNotFound')],['TAKEN2',t('friendTaken')],['OLD234',t('friendExpired')]]")
+    check('join errors: short code, own room, wrong code, taken, expired', msgs == want, msgs)
+    fake['down'] = True
+    await pg.click('#fJoinGo')
+    await pg.wait_for_timeout(300)
+    check('join with the network down: told so', await pg.evaluate("$('fMsg').textContent===t('friendNet')&&!$('fJoinGo').disabled"))
+    fake['down'] = False
+    await pg.screenshot(path=OUT + 'friend_join.png')
+    await pg.evaluate(FRIEND_RESULT)
+    await pg.click('#rematch')
+    await wait(pg, "Net.phase==='room'&&!!$('fCancel')")
+    check('rematch waits for the friend (name escaped)', await pg.evaluate("$('modal').querySelectorAll('b').length===0&&$('modal').textContent.includes('<b>Бат</b>')")
+          and [c[1] for c in fake['calls'] if c[0] == 'rematch_room'][-1] == {'p_match': 'm1'})
+    await pg.click('#fCancel')
+    await pg.wait_for_timeout(300)
+    check('rematch can be cancelled', await pg.evaluate("Net.phase===''&&$('modal').hidden") and fake['calls'][-1][0] == 'cancel_room')
+    fake['rematch'] = 'gone'
+    await pg.evaluate(FRIEND_RESULT)
+    await pg.click('#rematch')
+    await wait(pg, "!!$('fAgain')", 4000)
+    check('friend gone: offered a new room', await pg.evaluate("$('modal').textContent.includes(t('rematchGone'))"))
     await ctx.close()
 
 

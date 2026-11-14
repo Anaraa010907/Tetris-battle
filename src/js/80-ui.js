@@ -5,13 +5,17 @@ function pause(){
   if(state!=='play')return;
   if(isOnline()){forfeitDialog();return}
   state='pause';heldAction='';audio.stopMusic();
-  modal('<h2>'+t('paused')+'</h2><div class="stack"><button class="primary" id="resume">'+t('resume')+'</button><button id="quit">'+t('home')+'</button></div>');
+  pauseMenu();
+}
+function pauseMenu(){
+  modal('<h2>'+t('paused')+'</h2><div class="stack"><button class="primary" id="resume">'+t('resume')+'</button><button id="pauseCtl">'+t('controls')+'</button><button id="quit">'+t('home')+'</button></div>');
   $('resume').onclick=()=>{closeModal();state='play';unlockAudio()};
+  $('pauseCtl').onclick=()=>controlsDialog(pauseMenu);
   $('quit').onclick=leaveMatch;
 }
 $('pause').onclick=pause;
 $('start').onclick=startPractice;
-$('rematch').onclick=()=>series&&series.mode==='practice'?startPractice():openRank();
+$('rematch').onclick=()=>series&&series.mode==='practice'?startPractice():series&&series.mode==='friend'?friendRematch():openRank();
 $('home').onclick=leaveMatch;
 $('language').onclick=()=>{profile.lang=profile.lang==='mn'?'en':'mn';save();translate()};
 $('sound').onclick=()=>{profile.sound=!profile.sound;save();$('sound').classList.toggle('off',!profile.sound);unlockAudio()};
@@ -24,12 +28,13 @@ function info(title,body){modal('<h2>'+t(title)+'</h2><p>'+t(body)+'</p><button 
 function settings(){
   const fmtTxt=()=>t('format')+': '+t(profile.fmt==='ft3'?'fmtFt3':'fmtSingle'),powTxt=()=>t('powersSet')+': '+t(profile.powers?'on':'off');
   modal('<h2>'+t('settings')+'</h2><div class="stack"><label>'+t('nickname')+'<input id="nick" maxlength="16"></label><button id="avatar">'+t('avatar')+' '+profile.avatar+'</button>'
-    +'<button id="fmtBtn">'+fmtTxt()+'</button><button id="powBtn">'+powTxt()+'</button>'
+    +'<button id="fmtBtn">'+fmtTxt()+'</button><button id="powBtn">'+powTxt()+'</button><button id="ctlBtn">'+t('controls')+'</button>'
     +'<button id="vibrate">'+t('vibration')+': '+t(profile.vibration?'on':'off')+'</button><button id="privacy">'+t('privacy')+'</button><button id="delete">'+t('delete')+'</button><button id="saveProfile" class="primary">'+t('save')+'</button></div><p class="muted" id="setMsg">'+t(Cloud.on()?'cloudSaved':'local')+'</p>');
   $('nick').value=profile.name;
   $('avatar').onclick=()=>{profile.avatar=AVATARS[(AVATARS.indexOf(profile.avatar)+1)%AVATARS.length];$('avatar').textContent=t('avatar')+' '+profile.avatar;save();profileView()};
   $('fmtBtn').onclick=()=>{profile.fmt=profile.fmt==='ft3'?'single':'ft3';$('fmtBtn').textContent=fmtTxt();save()};
   $('powBtn').onclick=()=>{profile.powers=!profile.powers;$('powBtn').textContent=powTxt();save()};
+  $('ctlBtn').onclick=()=>controlsDialog(settings);
   $('vibrate').onclick=()=>{profile.vibration=!profile.vibration;$('vibrate').textContent=t('vibration')+': '+t(profile.vibration?'on':'off');save();vibrate()};
   $('privacy').onclick=()=>msgBox(t('privacyText')+(Cloud.on()?' '+t('privacyCloud'):''),settings);
   $('delete').onclick=()=>{
@@ -41,7 +46,7 @@ function settings(){
         catch(e){msgBox(errText(e),settings);return}
         Cloud.clearSession();outbox=[];saveOutbox();
       }
-      profile=freshProfile({diff:profile.diff,lang:profile.lang,fmt:profile.fmt,powers:profile.powers});
+      profile=freshProfile({diff:profile.diff,lang:profile.lang,fmt:profile.fmt,powers:profile.powers,ctl:profile.ctl});
       save();translate();audio.setMuted(!profile.sound);$('sound').classList.toggle('off',!profile.sound);closeModal();
       if(Cloud.on())sync(true);
     };
@@ -77,7 +82,7 @@ function shop(){
   });
 }
 $('shop').onclick=shop;
-$('ranked').onclick=openRank;
+$('ranked').onclick=onlineMenu;
 translate();
 if(Cloud.on()){sync();window.addEventListener('online',()=>sync())}
 audio.setMuted(!profile.sound);
@@ -87,7 +92,7 @@ window.MableBoot?.ready();
 last=performance.now();
 raf=requestAnimationFrame(frame);
 window.onAndroidBack=()=>{
-  if(Net.phase==='search'){Net.cancel();return true}
+  if(Net.phase==='search'||Net.phase==='room'){Net.cancel();return true}
   if(Net.phase==='handshake'||Net.phase==='countdown')return true;
   if(!$('modal').hidden){
     if(state==='pause'){closeModal();state='play';unlockAudio()}

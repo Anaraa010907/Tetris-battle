@@ -1,6 +1,7 @@
 /* ---------- match flow ---------- */
 // series.mode: 'practice' = vs NOVA, coins only | 'bot' = ranked vs a labelled bot | 'online' = ranked vs a player
-const isOnline=()=>!!series&&series.mode==='online';
+// | 'friend' = vs a player by room code (52-friends): live like 'online', but no rating, record or coins
+const isOnline=()=>!!series&&(series.mode==='online'||series.mode==='friend');
 const powersOn=()=>!!series&&series.mode==='practice'&&profile.powers;   // powers are a practice-only option
 function screen(id){$('title').inert=false;$('gameplay').inert=false;for(const s of ['title','gameplay','result','modal'])$(s).hidden=s!==id}
 function clearOver(){clearInterval(overTimer);overTimer=0;$('gameover').hidden=true}
@@ -71,8 +72,8 @@ const fmtTime=s=>Math.floor(s/60)+':'+(s%60).toFixed(1).padStart(4,'0');
 function finishMatch(win){
   clearOver();
   state='result';
-  const s=series,ranked=s.mode!=='practice',online=s.mode==='online',ft=s.target>1;
-  const wasPlaced=placed(),oldTitle=titleIdx(profile.rank),before=profile.rank,coins=ft?(win?150:40):(win?60:20);
+  const s=series,friend=s.mode==='friend',ranked=s.mode==='bot'||s.mode==='online',online=isOnline(),ft=s.target>1;
+  const wasPlaced=placed(),oldTitle=titleIdx(profile.rank),before=profile.rank,coins=friend?0:ft?(win?150:40):(win?60:20);
   const capped=s.mode==='bot'&&Cloud.on()&&before>=BOT_RP_CAP;
   if(!online){
     // practice pays coins only; a ranked bot game also moves the rating
@@ -84,15 +85,15 @@ function finishMatch(win){
   }
   const secs=Math.max(1,s.time);
   const pps=(s.pieces/secs).toFixed(2),apm=(s.attack/secs*60).toFixed(1),vs=((s.attack+s.gc)/secs*100).toFixed(1);
-  $('resultEyebrow').textContent=t(ranked?'rankedTag':'practiceTag')+(s.reason?' · '+t(s.reason):ft?' · '+s.me+' – '+s.foe:'');
+  $('resultEyebrow').textContent=t(friend?'friendTag':ranked?'rankedTag':'practiceTag')+(s.reason?' · '+t(s.reason):ft?' · '+s.me+' – '+s.foe:'');
   $('outcome').textContent=win?t('win'):t('lose').replace('{r}',rival);
   $('outcome').classList.toggle('lose',!win);
   const chip=(v,l,c)=>'<span class="chip'+(c?' '+c:'')+'"><b>'+v+'</b>'+l+'</span>';
-  let waiting=online;                          // online, the rating and coins come from the server
+  let waiting=online&&!friend;                 // online, the rating and coins come from the server
   const show=()=>{
     const d=profile.rank-before,letter=rankLetter(),rankLbl=s.startLetter!==letter?s.startLetter+' → '+letter:letter;
-    $('resultStats').innerHTML=(!ranked?chip('–',t('noRp')):waiting?chip('…','RP'):chip((d>=0?'+':'')+d,'RP · '+rankLbl,d>=0?'up':'down'))
-      +chip('+'+coins,'◈ '+t('coins'))+chip(fmtTime(s.time),t('timeLbl'))+chip(pps,'PPS')+chip(apm,'APM')+chip(vs,'VS');
+    $('resultStats').innerHTML=(!ranked?chip('–',t(friend?'friendNoRp':'noRp')):waiting?chip('…','RP'):chip((d>=0?'+':'')+d,'RP · '+rankLbl,d>=0?'up':'down'))
+      +chip(friend?'–':'+'+coins,'◈ '+t('coins'))+chip(fmtTime(s.time),t('timeLbl'))+chip(pps,'PPS')+chip(apm,'APM')+chip(vs,'VS');
     const ti=titleIdx(profile.rank),promo=!ranked||waiting?null:!wasPlaced&&placed()?['up','placedNow']:wasPlaced&&ti>oldTitle?['up','promoted']:wasPlaced&&ti<oldTitle?['down','demoted']:null;
     $('promo').hidden=!promo&&!capped;
     if(promo){$('promo').className=promo[0];$('promo').innerHTML='<span>'+t(promo[1])+'</span>'+myBadge(34)+'<span>'+titleName(profile.rank)+'</span>'}
@@ -101,7 +102,7 @@ function finishMatch(win){
   show();
   screen('result');
   if(!roundEndSent){roundEndSent=true;if(window.parent!==window)window.parent.postMessage({source:'mable-playable',type:'round_end',score:Math.round(+vs)},'*')}
-  if(online)sync(true).then(()=>{waiting=!Cloud.ready();if(state==='result'&&series===s)show()});
+  if(online){if(!friend)sync(true).then(()=>{waiting=!Cloud.ready();if(state==='result'&&series===s)show()})}
   else if(Cloud.on()){
     // the server recalculates rating and coins; its numbers replace the local ones when they arrive
     outbox.push({p_kind:ranked?'bot':'ai',p_opponent:rival,p_opponent_rating:rivalRating,p_format:ft?'ft3':'single',p_won:win,
