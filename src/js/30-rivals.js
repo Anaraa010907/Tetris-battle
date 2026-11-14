@@ -3,7 +3,7 @@
 const DIFFS=[{sec:2.1,noise:2.5,style:0,rating:850},{sec:1.3,noise:.6,style:1,rating:1000},{sec:.8,noise:.1,style:2,rating:1250}];
 // Ranked bots stand in when no player is around. They are always labelled as bots and built to match a rating.
 const BOT_NAMES=['NOVA_7','Kairo','Mira','Taiga','Orbit','Zed','Vega','Lyra','Onyx','Echo','Rune','Pixel'];
-const BOT_RP_CAP=1400;                 // online: from Гарьд up, rank points come only from real players
+const BOT_RP_CAP=1400;                 // online: from Түмэн (Tumen) up, rank points come only from real players
 function curve(pts,x){
   if(x<=pts[0][0])return pts[0][1];
   for(let i=1;i<pts.length;i++)if(x<=pts[i][0]){const [x0,y0]=pts[i-1],[x1,y1]=pts[i];return y0+(y1-y0)*(x-x0)/(x1-x0)}

@@ -1,0 +1,40 @@
+/* Khan Blocks brand language: navy night, neon cyan-to-violet edges, champion gold for the brand and the main
+   action, and the stepped-corner ornament of the block skin on dialogs and headings. */
+:root{--gold:#ffbf3a;--gold-hi:#fff0b8;--gold-lo:#ff9a2a;--edge:linear-gradient(90deg,#2aa8ff,#4a5cf0 52%,#8f3cff);--ink:#050817}
+button.primary{color:#2b1500;background:linear-gradient(180deg,#fff3c4 0%,#ffd45a 40%,#ffab2e 100%);box-shadow:0 6px 0 #a35200,0 0 30px #ffbf3a4d,inset 0 2px 0 #ffffffc8,inset 0 -3px 8px #c2650055;text-shadow:0 1px 0 #ffffff66}
+button.primary:active{transform:translateY(4px);box-shadow:0 2px 0 #a35200,0 0 22px #ffbf3a55}
+button.primary:disabled{opacity:1;color:#8b7a5c;background:linear-gradient(180deg,#3b3320,#2a2416);box-shadow:inset 0 0 0 1.5px #5c4c2a;text-shadow:none}
+header b{font-style:italic;letter-spacing:1px;font-size:19px;white-space:nowrap;text-transform:uppercase;background:linear-gradient(180deg,#fff6d6,#ffcf5a 55%,#ff9a2a);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 8px #ffbf3a55)}
+#loading{text-transform:uppercase;color:#ffd56b;font-size:30px;font-weight:800;font-style:italic;letter-spacing:5px;text-shadow:0 0 24px #ffbf3a88}
+#loading small{display:block;margin-top:10px;font-size:14px;letter-spacing:8px;color:#8ea6ff;font-style:normal}
+.eyebrow{color:#ffcf6a}
+.badge{border:1.5px solid transparent;background:linear-gradient(#071437,#071437) padding-box,var(--edge) border-box;color:#dfe8ff;font-weight:700}
+/* dialogs: stepped gold corners and an ornament band under the heading */
+#modal::before{content:'';position:absolute;inset:7px;pointer-events:none;opacity:.8;background:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Cg transform=%22rotate%280 12 12%29%22 fill=%22none%22 stroke=%22%23ffcf6a%22 stroke-width=%221.6%22%3E%3Cpath d=%22M1.5 22.5V10H5V5H10V1.5H22.5%22/%3E%3Cpath d=%22M12 9 15 12 12 15 9 12Z%22 fill=%22%23ffcf6a%22 stroke=%22none%22/%3E%3C/g%3E%3C/svg%3E") top left/24px no-repeat,url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Cg transform=%22rotate%2890 12 12%29%22 fill=%22none%22 stroke=%22%23ffcf6a%22 stroke-width=%221.6%22%3E%3Cpath d=%22M1.5 22.5V10H5V5H10V1.5H22.5%22/%3E%3Cpath d=%22M12 9 15 12 12 15 9 12Z%22 fill=%22%23ffcf6a%22 stroke=%22none%22/%3E%3C/g%3E%3C/svg%3E") top right/24px no-repeat,url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Cg transform=%22rotate%28180 12 12%29%22 fill=%22none%22 stroke=%22%23ffcf6a%22 stroke-width=%221.6%22%3E%3Cpath d=%22M1.5 22.5V10H5V5H10V1.5H22.5%22/%3E%3Cpath d=%22M12 9 15 12 12 15 9 12Z%22 fill=%22%23ffcf6a%22 stroke=%22none%22/%3E%3C/g%3E%3C/svg%3E") bottom right/24px no-repeat,url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Cg transform=%22rotate%28270 12 12%29%22 fill=%22none%22 stroke=%22%23ffcf6a%22 stroke-width=%221.6%22%3E%3Cpath d=%22M1.5 22.5V10H5V5H10V1.5H22.5%22/%3E%3Cpath d=%22M12 9 15 12 12 15 9 12Z%22 fill=%22%23ffcf6a%22 stroke=%22none%22/%3E%3C/g%3E%3C/svg%3E") bottom left/24px no-repeat}
+#modal h2::after,#result h2::after,#celebrate h2::after{content:'';display:block;width:126px;height:8px;margin-top:10px;background:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2218%22 height=%228%22%3E%3Cpath d=%22M0 4H5.5M12.5 4H18M9 1.2 11.8 4 9 6.8 6.2 4Z%22 fill=%22none%22 stroke=%22%23ffcf6a%22 stroke-width=%221.2%22/%3E%3C/svg%3E") repeat-x left/18px 8px;opacity:.75}
+#result h2::after{margin:12px auto 0}
+.rankhead h2::after{display:none!important}
+#modal .panel{cursor:default}
+.lbrow.me{border-color:#ffcf6aaa;box-shadow:0 0 14px #ffbf3a33}
+/* gameplay */
+#pstats div{border:1px solid transparent;background:linear-gradient(#0a1430,#0a1430) padding-box,linear-gradient(160deg,#2a5ab8,#3a2a8a) border-box}
+#action b{display:inline-block;transform:skewX(-8deg)}
+#action.pc b{background:linear-gradient(180deg,#fff6d6,#ffd35c 50%,#ff9a2a);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none;filter:drop-shadow(0 0 14px #ffc400aa)}
+#action small{color:#ffd35c}
+#flash{border-color:#ffd35c}
+#gameover>b{font-style:italic;background:linear-gradient(180deg,#fffbea 0%,#ffd867 42%,#ffb53a 64%,#ff7a1f 100%);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none;filter:drop-shadow(0 5px 0 #4a2000) drop-shadow(0 0 30px #ffbf3a99)}
+/* result */
+#result h2{color:#ffd56b;font-style:italic;text-shadow:0 0 40px #ffbf3a55}
+#outcome.lose{color:#ff7298;text-shadow:0 0 40px #ff729855}
+#result #rematch{min-height:70px;font-size:22px;animation:again 2.4s ease-in-out infinite}
+@keyframes again{50%{box-shadow:0 6px 0 #a35200,0 0 46px #ffbf3a88,inset 0 2px 0 #ffffffc8,inset 0 -3px 8px #c2650055}}
+@media(prefers-reduced-motion:reduce){#result #rematch{animation:none}}
+/* destructive actions (delete profile / account) and the controls dialog accents */
+button.danger{color:#ffc2cf;background:linear-gradient(#1d0c1c,#1d0c1c) padding-box,linear-gradient(90deg,#ff5c7a,#a8326a) border-box;box-shadow:0 0 14px #ff5c7a1f}
+button.danger.quiet{min-height:48px;margin:0 0 12px;font-size:14.5px}
+#modal .crange input{accent-color:#ffbf3a}
+.seg button.on{box-shadow:inset 0 0 0 1px #ffcf6a99}
+header small{margin-left:20px;padding-left:20px}
+/* titles ladder: name over its one-line meaning */
+.lbrow .tnm{display:flex;flex-direction:column;gap:1px;white-space:normal;font-weight:800}
+.tmean{font-size:11.5px;font-weight:500;color:#9fb2cf;line-height:1.25}

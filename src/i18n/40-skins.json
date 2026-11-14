@@ -1,0 +1,20 @@
+{
+  "en": {
+    "skinKhee": "Steppe ornament",
+    "skinKheeD": "Carved panels, felt garbage, a motif on every piece",
+    "skinAurora": "Aurora tubes",
+    "skinAuroraD": "Glowing neon outlines on dark glass",
+    "skinGobi": "Gobi sunset",
+    "skinGobiD": "Cut-stone gems in warm desert colours",
+    "unlockFor": "Unlock · {p} ◈"
+  },
+  "mn": {
+    "skinKhee": "Хээ угалз",
+    "skinKheeD": "Сийлбэртэй хүрээ, ширдэг саад, блок бүр өөрийн хээтэй",
+    "skinAurora": "Туйлын туяа",
+    "skinAuroraD": "Харанхуй шилэн дээр гэрэлтэх неон хүрээ",
+    "skinGobi": "Говийн үдэш",
+    "skinGobiD": "Говийн дулаан өнгөтэй, эрдэнийн чулуу шиг зүсэлттэй",
+    "unlockFor": "Нээх · {p} ◈"
+  }
+}

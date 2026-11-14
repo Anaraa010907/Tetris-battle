@@ -13,6 +13,8 @@ src/index.html is the page skeleton. Its directives:
     @@i18n@@           every src/i18n/*.json in name order, merged per language ({"en": {...}, "mn": {...}})
     @@js@@             every src/js/*.js in name order, joined as they are
     @@asset path@@     src/assets/path as a base64 data URL (also works inside CSS and JS files)
+    @@brand@@          the game's name: "brandName" from src/i18n (also works inside body.html). The one place
+                       to rename the game; texts use {@brandName}, the logo is filled in by 63-home.js
 
 Keep the output small and readable by the build: no newlines inside CSS selectors (a selector split over
 two lines loses its space), no text directly between two tags on separate lines in body.html.
@@ -59,8 +61,12 @@ def css():
     return assets_in(''.join(out))
 
 
+def brand():
+    return json.loads(i18n())['en']['brandName']
+
+
 def body():
-    text = read('body.html').strip()
+    text = read('body.html').strip().replace('@@brand@@', brand())
     return assets_in(re.sub(r'>\r?\n\s*<', '><', text))
 
 
@@ -87,7 +93,7 @@ def js():
 
 def build():
     page = read('index.html').rstrip('\r\n')
-    parts = {'css': css, 'body': body, 'i18n': i18n, 'js': js}
+    parts = {'css': css, 'body': body, 'i18n': i18n, 'js': js, 'brand': brand}
 
     def directive(m):
         word, _, arg = m.group(1).partition(' ')

@@ -5,7 +5,7 @@
 
     <!-- Dark window from the first frame, so the launch screen and the moment before the page loads
          are not white or black but the game's own colour. -->
-    <style name="Theme.NeonDuel" parent="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+    <style name="Theme.KhanBlocks" parent="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
         <item name="android:windowBackground">@color/neon_background</item>
     </style>
 </resources>

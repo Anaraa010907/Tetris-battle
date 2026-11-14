@@ -1,0 +1,17 @@
+/* block skins: board frames follow the equipped skin (variables set by applySkinCss in 59-skins.js) */
+#board{border-color:var(--skin-frame,#385172);box-shadow:0 0 24px var(--skin-glow,#29bdd414),inset 0 0 0 1px #ffffff08}
+#rival{border-color:var(--skin-frame,#35435f)}
+#boards::before,#boards::after{content:'';position:absolute;left:8px;width:264px;height:8px;background:var(--skin-band) repeat-x center/18px 8px;opacity:.55;pointer-events:none}
+#boards::before{top:-11px}
+#boards::after{top:563px}
+#holdBtn,.pbox{border-top-color:var(--skin-accent,#3a4f73)}
+/* shop: one button per skin with a rendered preview */
+#modal button.skin{display:flex;align-items:center;gap:14px;text-align:left;padding:10px 14px 10px 10px}
+.skinprev{flex:none;width:150px;height:60px;border-radius:8px;border:1px solid #2a3c5c;box-shadow:0 0 12px #00000055}
+.skintext{display:flex;flex-direction:column;gap:2px;min-width:0}
+.skintext b{font-size:17px;font-weight:800;color:#eef3ff}
+.skintext em{font-style:normal;font-size:12px;font-weight:500;line-height:1.3;color:#9fb2cf}
+#modal .skintext small{margin-top:3px;font-weight:700;color:#9bbbd5}
+#modal .skin:not(.on) .skintext small{color:#9bbbd5}
+#modal button.skin.on{border-color:#ffcf6a;box-shadow:0 0 18px #ffbf3a33}
+#modal button.skin.on .skintext small{color:#ffcf6a}

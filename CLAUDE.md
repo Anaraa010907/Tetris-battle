@@ -1,9 +1,12 @@
-# Neon Duel: rules for working in this repo
+# Khan Blocks: rules for working in this repo
 
-Neon Duel is a 1v1 falling-blocks battle game for phones (Mongolian and English), built as a single
+Khan Blocks (formerly Neon Duel) is a 1v1 falling-blocks battle game for phones (Mongolian and English), built as a single
 `index.html` and wrapped in an Android WebView app (`android/`). Online play uses Supabase (optional:
 without `src/config.json` filled in, everything works offline). The owner plans to publish on Google Play
-and the App Store.
+and the App Store. The player-visible name comes from one place, `brandName` in `src/i18n/45-brand.json`
+(the build fills `@@brand@@`, texts use `{@brandName}`); the Android package is `com.anaraa.khanblocks`.
+Rank titles are khan army ranks (Цэрэг … Их хаан): `TITLES` in `11-ranks.js`, `src/i18n/46-titles.json`
+and the SQL `rank_title()`.
 
 ## Layout
 
@@ -23,9 +26,12 @@ and the App Store.
 JS file map: `10-profile` (saved profile, translate), `11-ranks` (daily reward, ranks, titles, badges),
 `20-cloud` (Supabase client, sync, outbox), `30-rivals` (AI levels, ranked bots), `31-profile-ui`
 (profile, ladder, leaderboard dialogs), `40-rules` (board, SRS, attacks, garbage), `41-ai`, `42-input`
-(actions), `50-match` (practice / bot / online series flow, results), `51-online` (Realtime client,
-matchmaking, live 1v1), `60-render`, `61-loop`, `70-controls` (buttons, touch gestures, keyboard),
-`80-ui` (dialogs, settings, shop, boot).
+(actions), `43-handling` (DAS / ARR / soft drop for held buttons and keys), `50-match` (practice / bot /
+online / friend series flow, results), `51-online` (Realtime client, matchmaking, live 1v1), `52-friends`
+(friend rooms by code, unranked), `59-skins` (block skins registry, tile styles, previews), `60-render`,
+`61-loop`, `62-fx` (sparks, attack orbs, shake, progress bar, celebrations), `63-home` (home screen art),
+`64-result` (result screen), `70-controls` (buttons, touch gestures, keyboard), `72-controls-ui` (control
+settings dialog), `80-ui` (dialogs, settings, shop, boot).
 
 ## How to change things
 

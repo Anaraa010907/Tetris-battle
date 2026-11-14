@@ -1,7 +1,7 @@
 <main id="root" data-game-root>
   <div id="world">
-    <div id="loading">NEON DUEL<br>
-      <small>▰ ▰ ▰ ▰</small>
+    <div id="loading">@@brand@@<br>
+      <small>◇ ◆ ◇</small>
     </div>
     <button class="sound-toggle" id="sound" aria-label="Sound">
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -13,11 +13,14 @@
       </svg>
     </button>
     <header>
-      <b>NEON <i>DUEL</i>
-      </b>
+      <b id="brandMark">@@brand@@</b>
       <small id="headStatus">OFFLINE</small>
     </header>
     <section class="screen" id="title" data-screen="title">
+      <canvas id="homeArt" width="756" height="1638" aria-hidden="true">
+      </canvas>
+      <div id="hero" aria-hidden="true">
+      </div>
       <button id="language" aria-label="Language">EN</button>
       <span class="pill">
         <i>
@@ -25,9 +28,44 @@
         <span data-t="arena">
         </span>
       </span>
-      <h1 class="sr">NEON DUEL</h1>
+      <h1 class="logo" aria-label="@@brand@@">
+        <svg viewBox="0 0 460 178" aria-hidden="true">
+          <defs>
+            <linearGradient id="lgFace" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#fffbea"/>
+              <stop offset=".4" stop-color="#ffd867"/>
+              <stop offset=".64" stop-color="#ffb53a"/>
+              <stop offset="1" stop-color="#ff7a1f"/>
+            </linearGradient>
+            <linearGradient id="lgIce" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#ffffff"/>
+              <stop offset=".6" stop-color="#d4e8ff"/>
+              <stop offset="1" stop-color="#86b6ff"/>
+            </linearGradient>
+          </defs>
+          <g class="lgcrown" transform="translate(230 40) scale(1.3) translate(-230 -40)">
+            <path d="M203 33 206 13 217 23 230 3 243 23 254 13 257 33z"/>
+            <path class="lgcband" d="M201 33h58v7h-58z"/>
+            <path class="lgcgem" d="M230 25.5l3.6 3.6-3.6 3.6-3.6-3.6zM206 8.5l2.6 2.6-2.6 2.6-2.6-2.6zM254 8.5l2.6 2.6-2.6 2.6-2.6-2.6z"/>
+          </g>
+          <g transform="skewX(-8) translate(17 0)">
+            <text class="lgx lgw1" x="230" y="124">@@brand@@</text>
+            <text class="lgx lgw1" x="230" y="121">@@brand@@</text>
+            <text class="lgx lgw1" x="230" y="118">@@brand@@</text>
+            <text class="lgf lgw1" x="230" y="115">@@brand@@</text>
+          </g>
+          <g class="lgband">
+            <path class="lgline" d="M30 151H98M362 151H430"/>
+            <path class="lgfill" d="M22 146 27 151 22 156 17 151ZM438 146 443 151 438 156 433 151Z"/>
+            <path d="M105 145H109V148H112V154H109V157H105V154H102V148H105ZM351 145H355V148H358V154H355V157H351V154H348V148H351Z"/>
+          </g>
+          <text class="lgs lgw2" x="236" y="165"></text>
+        </svg>
+      </h1>
       <p class="tag" data-t="tagline">
       </p>
+      <button id="streak" class="streak" hidden>
+      </button>
       <div class="panel pcard">
         <div>
           <b id="profileName">NOMAD</b>

@@ -1,4 +1,4 @@
-package com.anaraa.neonduel;
+package com.anaraa.khanblocks;
 
 import android.app.Activity;
 import android.graphics.Color;
