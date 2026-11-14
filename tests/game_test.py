@@ -1,0 +1,423 @@
+#!/usr/bin/env python3
+"""Browser tests for the built index.html (rules, touch controls, game flows, the offline and cloud paths).
+
+    python3 tests/game_test.py                 all groups
+    python3 tests/game_test.py rules flows     only the named groups: rules, touch, flows, cloud
+
+Environment: CHROME (browser binary, default: Playwright's Chromium), TEST_OUT (screenshot folder).
+Exit code 1 when a check fails or the page throws. Checks read state through the game's own globals
+(boards, series, profile, t(...)), so they survive wording and layout changes; keep them that way.
+"""
+import asyncio, datetime, json, os, sys, tempfile
+from playwright.async_api import async_playwright
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PAGE = os.path.join(ROOT, 'index.html')
+OUT = os.path.join(os.environ.get('TEST_OUT') or tempfile.mkdtemp(prefix='neon-test-'), '')
+GROUPS = [g for g in sys.argv[1:] if not g.startswith('-')] or ['rules', 'touch', 'flows', 'cloud']
+R, ERRS = {}, []
+
+
+def check(name, ok, info=''):
+    R[name] = bool(ok)
+    print(('  ok   ' if ok else '  FAIL ') + name + ('' if ok else '  -> ' + json.dumps(info, ensure_ascii=False, default=str)[:400]), flush=True)
+
+
+async def new_page(browser, touch=False, store=None, route=None):
+    ctx = await browser.new_context(viewport={'width': 393, 'height': 852}, device_scale_factor=2, has_touch=touch, is_mobile=touch)
+    if route:
+        await ctx.route('https://test.supabase.co/**', route)
+    pg = await ctx.new_page()
+    pg.on('pageerror', lambda e: ERRS.append('PAGEERROR ' + str(e)))
+    pg.on('dialog', lambda d: ERRS.append('DIALOG ' + d.message))
+    if store is not None:
+        await pg.add_init_script("if(!localStorage.getItem('neon-duel'))localStorage.setItem('neon-duel',%s)" % json.dumps(json.dumps(store)))
+    return ctx, pg
+
+
+async def wait(pg, cond, timeout=8000):
+    # the page's CSP blocks eval-based polling in the page, so poll from here
+    end = asyncio.get_event_loop().time() + timeout / 1000
+    while not await pg.evaluate(cond):
+        if asyncio.get_event_loop().time() > end:
+            raise TimeoutError('timed out waiting for ' + cond)
+        await asyncio.sleep(0.1)
+
+
+FREEZE = "window.MABLE_PARAMS.fallSeconds=1000;aiClock=-1e9"     # stop gravity and the AI for setups
+CLEAR = "b.cells=Array.from({length:20},emptyRow);b.garbage=[];b.b2b=-1;b.combo=-1;b.attack=0;b.lines=0"
+
+
+# ====================================================================== rules
+async def rules(br):
+    print('rules', flush=True)
+    ctx, pg = await new_page(br)
+    await pg.goto('file://' + PAGE)
+    await pg.evaluate("profile.fmt='single';startPractice()")
+    await pg.evaluate(FREEZE)
+    q = await pg.evaluate("[boards[0].queue.slice(0,6),boards[1].queue.slice(0,6),boards[0].queue.length]")
+    check('both players get the same pieces, 5+ previews', q[0] == q[1] and q[2] >= 7, q)
+    att = await pg.evaluate("""[attackFor(1,0,-1,0,false),attackFor(2,0,-1,0,false),attackFor(4,0,0,0,false),attackFor(4,0,1,0,false),
+      attackFor(2,2,-1,0,false),attackFor(3,2,2,0,false),attackFor(1,0,-1,2,false),attackFor(2,0,-1,1,false),attackFor(4,0,0,2,false),
+      attackFor(1,0,-1,0,true),attackFor(2,1,0,0,false)]""")
+    check('attack table (lines, T-spin, B2B, combo, all clear)', att == [0, 1, 4, 5, 4, 7, 1, 1, 6, 10, 1], att)
+    k = await pg.evaluate("""(()=>{const b=boards[0];b.cells=Array.from({length:20},emptyRow);place(b,0);b.piece.y=18;
+      const x0=b.piece.x,y0=b.piece.y,ok=rotate(b,1);return [ok,b.piece.x-x0,b.piece.y-y0,b.lastKick,b.piece.r]})()""")
+    check('SRS: I piece on the floor kicks up', k == [True, 1, -2, 4, 1], k)
+    c = await pg.evaluate("""(()=>{const b=boards[0];b.cells=Array.from({length:20},emptyRow);place(b,2);b.piece.y=8;const s=JSON.stringify(b.piece.m),x=b.piece.x,y=b.piece.y;
+      for(let i=0;i<4;i++)rotate(b,1);const cw=JSON.stringify(b.piece.m)===s&&b.piece.x===x&&b.piece.y===y;
+      rotate(b,-1);rotate(b,1);const ccw=JSON.stringify(b.piece.m)===s;rotate(b,2);rotate(b,2);return cw&&ccw&&JSON.stringify(b.piece.m)===s})()""")
+    check('rotations cycle back (cw, ccw, 180)', c)
+    TSD = """b.cells[19]=[8,8,8,8,0,8,8,8,8,8];b.cells[18]=[8,8,8,0,0,0,8,8,8,8];b.cells[17][3]=8;b.piece={id:2,r:2,m:ROT[2][2],x:3,y:17};"""
+    t = await pg.evaluate("(()=>{const b=boards[0],o=boards[1];o.garbage=[];%s;%s b.lastRot=true;b.lastKick=0;lock(b);return [b.lines,b.attack,pendingRows(o,false),b.b2b]})()" % (CLEAR, TSD))
+    check('T-spin double sends 4', t == [2, 4, 4, 0], t)
+    t = await pg.evaluate("(()=>{const b=boards[0];%s;%s b.lastRot=false;lock(b);return [b.lines,b.attack]})()" % (CLEAR, TSD))
+    check('same slot without a rotation is a plain double', t == [2, 1], t)
+    QUAD = "for(let y=16;y<20;y++){b.cells[y]=Array(10).fill(8);b.cells[y][9]=0}b.cells[15][0]=3;b.piece={id:0,r:1,m:ROT[0][1],x:7,y:16};b.lastRot=false;"
+    t = await pg.evaluate("(()=>{const b=boards[0],o=boards[1];o.garbage=[];%s;%s b.garbage=[{rows:3,hole:2,delay:0}];lock(b);return [pendingRows(b,false),pendingRows(o,false),b.attack]})()" % (CLEAR, QUAD))
+    check('attacks cancel incoming garbage first (quad vs 3 -> sends 1)', t == [0, 1, 4], t)
+    t = await pg.evaluate("""(()=>{const b=boards[0];b.cells=Array.from({length:20},emptyRow);b.combo=-1;
+      b.garbage=[{rows:5,hole:1,delay:.35},{rows:6,hole:7,delay:0}];place(b,1);hard(b);const first=b.cells.filter(r=>r.includes(8)).length;
+      b.garbage[0].delay=0;place(b,1);b.piece.x=0;hard(b);return [first,b.cells.filter(r=>r.includes(8)).length,pendingRows(b,false)]})()""")
+    check('garbage waits its delay, in order, max 8 per piece', t == [0, 8, 3], t)
+    t = await pg.evaluate("""(()=>{const b=boards[0];b.cells=Array.from({length:20},emptyRow);b.garbage=[];place(b,2);while(move(b,0,1));
+      const p=b.piece;for(let i=0;i<27;i++)step(1/60);const early=b.piece===p;for(let i=0;i<6;i++)step(1/60);return [early,b.piece!==p]})()""")
+    check('lock delay 0.5 s', t == [True, True], t)
+    t = await pg.evaluate("""(()=>{const b=boards[0],o=boards[1];o.garbage=[];%s;const out=[];for(let k=0;k<3;k++){
+      b.cells[19]=[8,8,8,8,8,8,8,8,8,0];b.cells[18]=[8,8,8,8,8,8,8,8,8,0];b.cells[0][0]=3;b.piece={id:0,r:1,m:ROT[0][1],x:7,y:16};lock(b);out.push([b.combo,b.attack])}return out})()""" % CLEAR)
+    check('combo grows the attack', t == [[0, 1], [1, 2], [2, 3]], t)
+    t = await pg.evaluate("(()=>{const b=boards[0],o=boards[1];o.garbage=[];%s;b.cells[19]=[8,8,8,8,8,8,0,0,0,0];b.piece={id:0,r:0,m:ROT[0][0],x:6,y:18};lock(b);return b.attack})()" % CLEAR)
+    check('all clear sends 10', t == 10, t)
+    t = await pg.evaluate("""(()=>{rivalCfg=DIFFS[2];const o=boards[1];o.cells=Array.from({length:20},emptyRow);o.garbage=[];o.lines=0;
+      for(let i=0;i<150&&state==='play';i++){aiMove();boards[0].garbage=[]}return [state,o.lines]})()""")
+    check('Hard AI survives 150 pieces and clears lines', t[0] == 'play' and t[1] > 40, t)
+    await ctx.close()
+
+
+# ====================================================================== touch
+S = 412 / 504
+
+
+async def touch(br):
+    print('touch', flush=True)
+    ctx, pg = await new_page(br, touch=True)
+    cdp = await ctx.new_cdp_session(pg)
+    await pg.goto('file://' + PAGE)
+    await pg.evaluate("profile.fmt='single';startPractice()")
+    await pg.evaluate(FREEZE + ";rivalCfg={...rivalCfg,sec:1e9}")
+    # convert game coordinates (504 wide) to page coordinates for this viewport
+    sc = await pg.evaluate("parseFloat($('world').style.transform.slice(6))")
+    ox, oy = await pg.evaluate("[parseFloat($('world').style.left),parseFloat($('world').style.top)]")
+
+    def css(wx, wy): return ox + wx * sc, oy + wy * sc
+
+    async def t(kind, x, y):
+        await cdp.send('Input.dispatchTouchEvent', {'type': kind, 'touchPoints': [] if kind == 'touchEnd' else [{'x': x, 'y': y, 'id': 1}]})
+
+    async def drag(w0, w1, ms, steps=12):
+        x0, y0 = css(*w0); x1, y1 = css(*w1)
+        await t('touchStart', x0, y0)
+        for i in range(1, steps + 1):
+            await pg.wait_for_timeout(ms / steps)
+            await t('touchMove', x0 + (x1 - x0) * i / steps, y0 + (y1 - y0) * i / steps)
+        await t('touchEnd', x1, y1)
+        await pg.wait_for_timeout(50)
+
+    async def fresh(i=2):
+        await pg.evaluate("(()=>{const b=boards[0];b.cells=Array.from({length:20},emptyRow);place(b,%d);b.canHold=true})()" % i)
+
+    await fresh()
+    before = await pg.evaluate('JSON.stringify(boards[0].piece.m)')
+    x, y = css(450, 790)
+    await t('touchStart', x, y); await pg.wait_for_timeout(60); await t('touchEnd', x, y); await pg.wait_for_timeout(50)
+    check('tap anywhere rotates', before != await pg.evaluate('JSON.stringify(boards[0].piece.m)'))
+    await fresh(); x0 = await pg.evaluate('boards[0].piece.x')
+    await drag((40, 1000), (40 + 26 * 3 + 5, 1002), 600)
+    check('slow slide right moves 3 columns', await pg.evaluate('boards[0].piece.x') - x0 == 3)
+    await fresh()
+    await drag((140, 400), (140, 400 + 28 * 4 + 5), 1200, steps=24)
+    r = await pg.evaluate('[boards[0].piece.y,boards[0].cells.flat().filter(v=>v).length]')
+    check('slow drag down follows the finger, no lock', r == [4, 0], r)
+    await fresh()
+    # a real flick takes a few frames; CDP touches are too slow to time one, so dispatch it in the page
+    await pg.evaluate("""(()=>{const el=$('board'),s=parseFloat($('world').style.transform.slice(6)),r=$('world').getBoundingClientRect();
+      const P=(type,y)=>el.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:7,pointerType:'touch',isPrimary:true,clientX:r.left+140*s,clientY:r.top+y*s}));
+      P('pointerdown',300);P('pointermove',380);P('pointermove',460);P('pointermove',620);P('pointerup',620)})()""")
+    r = await pg.evaluate('[boards[0].cells.flat().filter(v=>v).length,boards[0].piece.y,boards[0].pieces]')
+    check('fast flick down drops', r[0] == 4, r)
+    await fresh()
+    await drag((200, 700), (200, 600), 150, steps=6)
+    r = await pg.evaluate('[boards[0].hold,boards[0].canHold]')
+    check('swipe up holds, once per piece', r == [2, False], r)
+    cur = await pg.evaluate('boards[0].piece.id')
+    await pg.click('#holdBtn')
+    check('second hold on the same piece is ignored', await pg.evaluate('boards[0].piece.id') == cur)
+    await pg.evaluate("hard(boards[0])"); await pg.click('#holdBtn')
+    r = await pg.evaluate('[boards[0].piece.id,boards[0].canHold]')
+    check('hold swaps on the next piece', r == [2, False], r)
+    await fresh(5); sx = await pg.evaluate('boards[0].piece.x')
+    x0, y0 = css(140, 300)
+    await t('touchStart', x0, y0)
+    for i in range(1, 9):
+        await pg.wait_for_timeout(40); await t('touchMove', x0 + i * 7 * sc, y0)
+    for i in range(1, 11):
+        await pg.wait_for_timeout(60); await t('touchMove', x0 + 56 * sc, y0 + i * 9 * sc)
+    await pg.wait_for_timeout(200); await t('touchEnd', x0 + 56 * sc, y0 + 90 * sc)
+    r = await pg.evaluate('[boards[0].piece.x-%d,boards[0].piece.y]' % sx)
+    check('L-shaped drag: sideways, then down', r == [2, 3], r)
+    await fresh(); m0 = await pg.evaluate('JSON.stringify(boards[0].piece.m)')
+    await pg.tap('#controls button[data-action="left"]')
+    check('buttons do not count as a tap-to-rotate', await pg.evaluate('JSON.stringify(boards[0].piece.m)') == m0)
+    await pg.screenshot(path=OUT + 'touch.png')
+    await ctx.close()
+
+
+# ====================================================================== flows
+async def flows(br):
+    print('flows', flush=True)
+    ctx, pg = await new_page(br)
+    await pg.goto('file://' + PAGE)
+    await pg.wait_for_timeout(500)
+    await pg.screenshot(path=OUT + 'home.png')
+    check('new player is unranked ("?")', await pg.evaluate("rankLetter()==='?'&&!placed()"))
+    # settings: format and powers
+    await pg.click('#settings'); await pg.click('#fmtBtn'); await pg.click('#saveProfile')
+    check('format setting is saved', await pg.evaluate("JSON.parse(localStorage.getItem('neon-duel')).fmt") == 'ft3')
+    # practice FT3 vs NOVA
+    await pg.click('#start'); await pg.wait_for_timeout(200)
+    r = await pg.evaluate("({mode:series.mode,target:series.target,powers:$('powers').hidden,badge:$('series').hidden})")
+    check('practice FT3 starts (powers off by default)', r == {'mode': 'practice', 'target': 3, 'powers': True, 'badge': False}, r)
+    for i in range(4):
+        await pg.evaluate("action('%s');action('hard')" % ['left', 'right', 'rotate', 'ccw'][i])
+        await pg.wait_for_timeout(250)
+    await pg.screenshot(path=OUT + 'play.png')
+    await pg.evaluate("finishRound(boards[1])"); await pg.wait_for_timeout(300)
+    check('round over: GAME! and 1-0', await pg.evaluate("state==='over'&&!$('gameover').hidden&&series.me===1"))
+    await wait(pg, "state==='play'&&series.game===1&&boards[0].pieces===0", 7000)
+    for who in ('boards[0]', 'boards[1]', 'boards[1]'):
+        await wait(pg, "state==='play'", 7000)
+        await pg.evaluate("finishRound(%s)" % who)
+    await wait(pg, "state==='result'", 4000)
+    r = await pg.evaluate("({me:series.me,foe:series.foe,rank:profile.rank,wins:profile.wins,coins:profile.coins,rp:$('resultStats').firstElementChild.textContent.includes(t('noRp'))})")
+    check('practice series 3-1: coins only, no rank', r == {'me': 3, 'foe': 1, 'rank': 1000, 'wins': 0, 'coins': 150, 'rp': True}, r)
+    await pg.screenshot(path=OUT + 'result.png')
+    await pg.click('#rematch'); await pg.wait_for_timeout(100)
+    check('rematch after practice is practice', await pg.evaluate("state==='play'&&series.mode==='practice'"))
+    await pg.evaluate("leaveMatch()")
+    # powers only in practice
+    await pg.click('#settings'); await pg.click('#fmtBtn'); await pg.click('#powBtn'); await pg.click('#saveProfile')
+    await pg.click('#start'); await pg.wait_for_timeout(100)
+    check('powers show in practice when switched on', await pg.evaluate("!$('powers').hidden&&powersOn()"))
+    await pg.evaluate("leaveMatch()")
+    # ranked without a server: a labelled bot near the player's rating
+    await pg.click('#ranked'); await pg.wait_for_timeout(200)
+    check('Rank without a server offers a bot', await pg.evaluate("$('modal').textContent.includes(t('rankOffline'))&&!!$('rkBot')"))
+    await pg.click('#rkBot'); await pg.wait_for_timeout(200)
+    r = await pg.evaluate("({mode:series.mode,powers:powersOn(),bot:$('rivalName').textContent.includes(t('bot').toUpperCase()),near:Math.abs(rivalRating-profile.rank)<=60})")
+    check('ranked bot game: labelled, near my rating, no powers', r == {'mode': 'bot', 'powers': False, 'bot': True, 'near': True}, r)
+    await pg.evaluate("finishRound(boards[1])"); await wait(pg, "state==='result'", 4000)
+    r = await pg.evaluate("[profile.wins,profile.rank>1000,profile.coins]")
+    check('ranked bot win moves rank and record', r == [1, True, 210], r)
+    await pg.click('#rematch'); await pg.wait_for_timeout(100)
+    check('rematch after ranked opens Rank again', await pg.evaluate("state==='title'&&!!$('rkBot')"))
+    await pg.click('#rkCancel')
+    b = await pg.evaluate("[700,1300,2050].map(r=>{const x=botFor(r);return [x.cfg.sec,x.cfg.style]})")
+    check('bots get faster and smarter with rating', b[0][0] > b[1][0] > b[2][0] and b[0][1] == 0 and b[2][1] == 2, b)
+    # titles, promotion, ladder and leaderboard
+    await pg.evaluate("profile.wins=3;profile.losses=1;profile.rank=1170;profile.fmt='single';save();profileView()")
+    await pg.click('#ranked'); await pg.click('#rkBot'); await pg.wait_for_timeout(100)
+    await pg.evaluate("rivalRating=1200;finishRound(boards[1])"); await wait(pg, "state==='result'", 4000)
+    r = await pg.evaluate("({placed:placed(),promo:!$('promo').hidden,title:titleName(profile.rank)})")
+    check('fifth ranked game gives a title with a banner', r['placed'] and r['promo'] and r['title'] == await pg.evaluate("t('tZaan')"), r)
+    await pg.evaluate("leaveMatch()")
+    await pg.click('.pcard'); await pg.wait_for_timeout(200)
+    check('profile shows title and progress', await pg.evaluate("!!document.querySelector('.rankhead .rbadge')&&!!document.querySelector('.prog i')"))
+    await pg.click('#lbBtn'); await pg.wait_for_timeout(200)
+    check('offline leaderboard lists me among the AI', await pg.evaluate("document.querySelectorAll('#lbList .lbrow').length>=4&&!!document.querySelector('#lbList .lbrow.me')"))
+    await pg.click('#lbDone'); await pg.click('#ladderBtn')
+    check('ladder lists the 8 titles', await pg.evaluate("document.querySelectorAll('.lb .lbrow').length") == 8)
+    await pg.click('#ladDone'); await pg.click('#statsDone')
+    # back button and pause
+    await pg.evaluate("profile.fmt='single'"); await pg.click('#start'); await pg.wait_for_timeout(100)
+    r = await pg.evaluate("[window.onAndroidBack(),state,window.onAndroidBack(),state]")
+    check('back pauses, back again resumes', r == [True, 'pause', True, 'play'], r)
+    await pg.evaluate("finishRound(boards[0])"); await pg.wait_for_timeout(100)
+    check('back is ignored on the GAME! screen', await pg.evaluate("[window.onAndroidBack(),state]") == [True, 'over'])
+    await wait(pg, "state==='result'", 4000)
+    check('back leaves the result, then exits from home', await pg.evaluate("[window.onAndroidBack(),state,window.onAndroidBack()]") == [True, 'title', False])
+    # shop, language, delete
+    await pg.evaluate("profile.coins=300;save()")
+    await pg.click('#shop'); await pg.click('[data-theme="2"]')
+    check('theme bought and equipped', await pg.evaluate("[profile.theme,profile.coins]") == [2, 200])
+    await pg.click('#shopDone')
+    await pg.click('#language')
+    check('language switches', await pg.evaluate("profile.lang==='en'&&$('start').textContent===STRINGS.en.start"))
+    await pg.click('#language')
+    await pg.click('#settings'); await pg.click('#delete'); await pg.click('#yesDelete')
+    r = await pg.evaluate("({rank:profile.rank,wins:profile.wins,coins:profile.coins,theme:profile.theme})")
+    check('delete profile resets progress', r == {'rank': 1000, 'wins': 0, 'coins': 0, 'theme': 0}, r)
+    await pg.click('#tutorial')
+    for _ in range(3):
+        await pg.click('#tNext')
+    check('tutorial opens and closes', await pg.evaluate("$('modal').hidden"))
+    await ctx.close()
+
+
+# ====================================================================== cloud (a fake Supabase)
+async def cloud(br):
+    print('cloud', flush=True)
+    src = open(PAGE, encoding='utf-8').read()
+    test_page = OUT + 'cloud_test.html'
+    open(test_page, 'w', encoding='utf-8').write(src.replace('{"supabaseUrl":"","supabaseAnonKey":""}',
+                                                            '{"supabaseUrl":"https://test.supabase.co","supabaseAnonKey":"anon-key"}'))
+    calls, users, net = [], {}, {'down': False, 'n': 0}
+    cors = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*'}
+
+    def fresh(uid, name):
+        return {'id': uid, 'username': name, 'avatar': '👑', 'rating': 1000, 'wins': 0, 'losses': 0, 'coins': 0,
+                'theme': 0, 'owned': [0], 'streak': 0, 'last_claim': None, 'imported': False}
+
+    def session(uid, email='', anon=True):
+        return {'access_token': 'tok-' + uid, 'refresh_token': 'ref-' + uid, 'expires_in': 3600, 'user': {'id': uid, 'email': email, 'is_anonymous': anon}}
+
+    async def handle(route):
+        req = route.request
+        if req.method == 'OPTIONS':
+            return await route.fulfill(status=204, headers=cors)
+        if net['down']:
+            return await route.abort()
+        path = req.url.split('supabase.co', 1)[1]
+        body = json.loads(req.post_data) if req.post_data else {}
+        auth = req.headers.get('authorization', '')
+        uid = auth[len('Bearer tok-'):] if auth.startswith('Bearer tok-') else None
+        calls.append((path.split('?')[0], body, req.headers.get('apikey')))
+        ok = lambda d, st=200: route.fulfill(status=st, headers={**cors, 'Content-Type': 'application/json'}, body=json.dumps(d))
+        err = lambda m, st=400: ok({'message': m}, st)
+        if path.startswith('/auth/v1/signup'):
+            net['n'] += 1; u = 'guest%d' % net['n']
+            users[u] = fresh(u, body.get('data', {}).get('username', 'NOMAD'))
+            return await ok(session(u))
+        if path.startswith('/auth/v1/token?grant_type=password'):
+            if body.get('email') == 'a@b.mn' and body.get('password') == 'secret12':
+                users.setdefault('acct', {**fresh('acct', 'Хаан'), 'rating': 1300, 'wins': 20, 'losses': 5, 'coins': 900})
+                return await ok(session('acct', 'a@b.mn', False))
+            return await err('Invalid login credentials')
+        if path.startswith('/auth/v1/user'):
+            return await ok({'id': uid, 'email': body['email'], 'is_anonymous': False})
+        if path.startswith('/auth/v1/logout'):
+            return await route.fulfill(status=204, headers=cors)
+        if path.startswith('/rest/v1/leaderboard'):
+            return await ok([{'id': 'x1', 'username': '<img src=x onerror=alert(1)>', 'avatar': '⚡', 'rating': 1500, 'position': 1},
+                             {'id': 'x2', 'username': 'Болд', 'avatar': '◈', 'rating': 1210, 'position': 2}])
+        me = users.get(uid)
+        if me is None:
+            return await err('not_signed_in', 401)
+        fn = path.split('/rpc/')[1] if '/rpc/' in path else ''
+        if fn == 'get_my_profile':
+            return await ok(me)
+        if fn == 'import_local':
+            if not me['imported'] and me['wins'] + me['losses'] == 0:
+                me.update(rating=min(body['p_rating'], 1400), wins=body['p_wins'], losses=body['p_losses'], coins=min(body['p_coins'], 2000),
+                          owned=sorted({0, *[x for x in body['p_owned'] if x in (0, 1, 2)]}), imported=True)
+            return await ok(me)
+        if fn == 'report_match':
+            ft = body['p_format'] == 'ft3'
+            if body['p_kind'] == 'bot':
+                e = 1 / (1 + 10 ** ((body['p_opponent_rating'] - me['rating']) / 400))
+                me['rating'] = max(0, me['rating'] + round((40 if ft else 24) * ((1 if body['p_won'] else 0) - e)))
+                me['wins' if body['p_won'] else 'losses'] += 1
+            me['coins'] += (150 if body['p_won'] else 40) if ft else (60 if body['p_won'] else 20)
+            return await ok(me)
+        if fn == 'claim_daily':
+            if me['last_claim']:
+                return await err('already_claimed')
+            me.update(last_claim=(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)).strftime('%Y-%m-%d'), streak=1, coins=me['coins'] + 10)
+            return await ok(me)
+        if fn == 'buy_theme':
+            if body['p_theme'] not in me['owned']:
+                if me['coins'] < 100:
+                    return await err('not_enough_coins')
+                me['coins'] -= 100; me['owned'].append(body['p_theme'])
+            me['theme'] = body['p_theme']
+            return await ok(me)
+        if fn == 'set_profile':
+            if (body.get('p_username') or '').lower() == 'taken':
+                return await err('username_taken', 409)
+            if body.get('p_username'): me['username'] = body['p_username']
+            if body.get('p_avatar'): me['avatar'] = body['p_avatar']
+            return await ok(me)
+        if fn == 'my_position':
+            return await ok(3)
+        if fn == 'delete_my_account':
+            users.pop(uid, None)
+            return await route.fulfill(status=204, headers=cors)
+        return await err('unknown ' + path, 404)
+
+    ctx, pg = await new_page(br, store={'name': 'Тэмүүжин', 'rank': 1180, 'wins': 4, 'losses': 2, 'coins': 250, 'owned': [0, 1], 'theme': 1}, route=handle)
+    await pg.goto('file://' + test_page)
+    await wait(pg, "Cloud.state==='online'")
+    r = await pg.evaluate("({rank:profile.rank,wins:profile.wins,coins:profile.coins,name:profile.name,id:profile.cloudId})")
+    check('guest sign-up imports offline progress', r == {'rank': 1180, 'wins': 4, 'coins': 250, 'name': 'Тэмүүжин', 'id': 'guest1'}, r)
+    check('anon key sent on every call', all(c[2] == 'anon-key' for c in calls))
+    await pg.evaluate("profile.fmt='single';profile.diff=1;save()")
+    await pg.click('#start'); await pg.wait_for_timeout(200)
+    await pg.evaluate("finishRound(boards[0])"); await wait(pg, "state==='result'&&outbox.length===0", 6000)
+    rep = [c[1] for c in calls if c[0].endswith('report_match')]
+    check('practice result reported as practice, coins from the server', rep and rep[-1]['p_kind'] == 'ai' and await pg.evaluate("[profile.rank,profile.coins]") == [1180, 270], rep[-1:])
+    await pg.click('#home')
+    await pg.click('.pcard'); await pg.wait_for_timeout(500)
+    check('leaderboard position shown', await pg.evaluate("$('myPos')?.textContent||''") == ' · #3')
+    await pg.click('#claimDaily'); await pg.wait_for_timeout(500)
+    check('daily reward through the server, once', await pg.evaluate("[profile.coins,canClaim()]") == [280, False])
+    await pg.click('#lbBtn'); await pg.wait_for_timeout(500)
+    r = await pg.evaluate("[document.querySelectorAll('#lbList img').length,document.querySelector('#lbList .nm').textContent]")
+    check('leaderboard names are escaped', r[0] == 0 and '<img' in r[1], r)
+    await pg.click('#lbDone')
+    await pg.fill('#aUser', 'temuujin@mail.mn'); await pg.fill('#aPw', 'secret12'); await pg.click('#linkAcc'); await pg.wait_for_timeout(500)
+    check('guest account secured with email', await pg.evaluate("[Cloud.session.user.anon,Cloud.session.user.email]") == [False, 'temuujin@mail.mn'])
+    await pg.wait_for_timeout(1000)
+    await pg.click('#statsDone')
+    await pg.click('#settings'); await pg.fill('#nick', 'Taken'); await pg.click('#saveProfile'); await pg.wait_for_timeout(400)
+    check('taken nickname is refused', await pg.evaluate("$('setMsg').textContent===t('errNameTaken')"))
+    await pg.fill('#nick', 'Тэмүүжин2'); await pg.click('#saveProfile'); await pg.wait_for_timeout(400)
+    check('rename through the server', await pg.evaluate("[profile.name,$('modal').hidden]") == ['Тэмүүжин2', True])
+    await pg.click('#shop'); await pg.click('[data-theme="2"]'); await pg.wait_for_timeout(400)
+    check('theme bought through the server', await pg.evaluate("[profile.theme,profile.coins]") == [2, 180])
+    await pg.click('#shopDone')
+    net['down'] = True
+    await pg.evaluate("Cloud.state='offline';netView()")
+    await pg.click('#ranked'); await pg.wait_for_timeout(1500)
+    check('Rank with the server down: told so, bot offered', await pg.evaluate("$('modal').textContent.includes(t('rankNoNet'))&&!!$('rkBot')"))
+    await pg.click('#rkBot'); await pg.wait_for_timeout(200)
+    await pg.evaluate("finishRound(boards[1])"); await wait(pg, "state==='result'", 6000); await pg.wait_for_timeout(1500)
+    check('offline result waits in the outbox', await pg.evaluate("[outbox.length,JSON.parse(localStorage.getItem('neon-duel-outbox')).length]") == [1, 1])
+    net['down'] = False
+    await pg.evaluate("sync(true)"); await wait(pg, "Cloud.state==='online'&&outbox.length===0", 6000)
+    check('outbox sent on reconnect (ranked bot win counted)', await pg.evaluate("profile.wins") == 5)
+    await pg.click('#home')
+    await pg.click('.pcard'); await pg.wait_for_timeout(300)
+    await pg.evaluate("Cloud.session.user.anon=true;stats()")
+    await pg.fill('#aUser', 'a@b.mn'); await pg.fill('#aPw', 'wrong'); await pg.click('#signInAcc'); await pg.wait_for_timeout(400)
+    check('wrong password is refused', await pg.evaluate("$('aMsg').textContent===t('accBadCloud')"))
+    await pg.fill('#aPw', 'secret12'); await pg.click('#signInAcc'); await pg.wait_for_timeout(800)
+    check('sign in to another account', await pg.evaluate("[profile.name,profile.rank,profile.wins]") == ['Хаан', 1300, 20])
+    await pg.click('#statsDone')
+    await pg.click('#settings'); await pg.click('#delete'); await pg.click('#yesDelete'); await pg.wait_for_timeout(900)
+    check('delete removes the server account', any(c[0].endswith('delete_my_account') for c in calls) and await pg.evaluate("[profile.rank,profile.wins]") == [1000, 0])
+    await ctx.close()
+
+
+async def main():
+    async with async_playwright() as pw:
+        br = await pw.chromium.launch(executable_path=os.environ.get('CHROME') or None, args=['--no-sandbox'])
+        for g in GROUPS:
+            await globals()[g](br)
+        await br.close()
+    fails = [k for k, v in R.items() if not v]
+    print('page errors:', ERRS or 'none')
+    print('RESULT: %d checks, %d failed %s' % (len(R), len(fails), fails))
+    print('screenshots:', OUT)
+    sys.exit(1 if fails or ERRS else 0)
+
+
+asyncio.run(main())

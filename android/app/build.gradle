@@ -2,21 +2,40 @@ plugins {
     id 'com.android.application'
 }
 
+// Release signing: the release workflow passes the upload key through environment variables
+// (see docs/LAUNCH.md). Without them, release builds are left unsigned.
+def keystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+
 android {
     namespace 'com.anaraa.neonduel'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId 'com.anaraa.neonduel'
         minSdk 24
-        targetSdk 34
-        versionCode 3
-        versionName '1.2'
+        targetSdk 36
+        // The release workflow sets NEON_VERSION_CODE so every upload to Google Play gets a higher number.
+        versionCode((System.getenv('NEON_VERSION_CODE') ?: '4') as int)
+        versionName '1.3'
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            if (keystorePath) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
