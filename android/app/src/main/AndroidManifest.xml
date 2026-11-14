@@ -2,17 +2,29 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- online accounts, ranked matchmaking and live matches (Supabase) -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      allowBackup: Android's own backup (to the player's Google account) keeps offline progress and the
+        guest account when the player moves to a new phone. Nothing is sent to us by it.
+      appCategory="game": marks the app as a game; on Android 16 large screens games keep their portrait lock.
+      enableOnBackInvokedCallback: Android 13+ sends Back to MainActivity's OnBackInvokedCallback
+        (the default from Android 16 when targeting API 36; set here so Android 13-15 behave the same).
+    -->
     <application
         android:label="Neon Duel"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
+        android:appCategory="game"
+        android:enableOnBackInvokedCallback="true"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+        android:theme="@style/Theme.NeonDuel">
+        <!-- configChanges: rotating, folding, resizing or switching dark mode must not reload the game mid-match -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="portrait"
-            android:configChanges="orientation|screenSize|keyboardHidden">
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
