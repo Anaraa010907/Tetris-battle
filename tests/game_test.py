@@ -899,8 +899,24 @@ async def store_page(br, fake=True, store=None, route=None, page=None):
     return ctx, pg
 
 
+def edge_function_tests():
+    # the Edge Functions' logic (supabase/functions/_shared/play.mjs) runs on Node 22 as well as Deno: test it here when
+    # a Node 22+ is around (NODE=/path, node on PATH or /opt/node22/bin/node); without one, say it was skipped
+    import shutil, subprocess
+    node = os.environ.get('NODE') or shutil.which('node') or ('/opt/node22/bin/node' if os.path.exists('/opt/node22/bin/node') else '')
+    ver = subprocess.run([node, '-p', 'process.versions.node.split(".")[0]'], capture_output=True, text=True).stdout.strip() if node else ''
+    if not ver.isdigit() or int(ver) < 22:
+        print('  skip Edge Function tests (needs Node 22+, set NODE=/path/to/node)', flush=True)
+        return
+    r = subprocess.run([node, os.path.join(ROOT, 'supabase', 'functions', 'tests', 'play_test.mjs')], capture_output=True, text=True)
+    last = (r.stdout.strip().splitlines() or [''])[-1]
+    check('Edge Functions (verify-purchase, voided-purchases) on Node ' + ver + ': ' + last.replace('RESULT: ', ''), r.returncode == 0,
+          [l for l in r.stdout.splitlines() if 'FAIL' in l][:5] or r.stderr[-400:])
+
+
 async def store(br):
     print('store', flush=True)
+    edge_function_tests()
     # ---- a plain browser: no bridge, no store, a note instead of the shop section, no ads at all
     ctx, pg = await store_page(br, fake=False)
     r = await pg.evaluate("""(()=>{const d=document.createElement('div');document.body.append(d);renderIapSection(d);
