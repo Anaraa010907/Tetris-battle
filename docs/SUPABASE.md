@@ -158,3 +158,22 @@
 - **Тоглолтоос гарсан тоглогч:** апп хаагдсан бол өрсөлдөгч 30 секундийн дараа цувралыг авна. Дахин "Rank тоглолт" дарсан тоглогчийн дуусаагүй хуучин цуврал ялагдалд тооцогдоно.
 - **Зардал:** Realtime мессеж болон зэрэг холбогдох тоглогчийн тоо Supabase-ийн багцаар хязгаарлагддаг. Тоглогч олширвол Usage хуудсаа хянаж, шаардлагатай бол багцаа ахиулна.
 - Тоглоом гаргахын өмнө нууцлалын бодлогын хуудас, мөн Google Play-д бүртгэл устгах заавар (тоглоомд аль хэдийн бий) хэрэгтэй.
+
+## 11. Худалдан авалт ба зар (payments)
+
+Дэлгэрэнгүй заавар: `docs/MONETIZATION.md` (8-р хэсэг). Товчхондоо:
+
+- **Migration:** `20261118000000_payments.sql`-ийг дээрх migration-уудын дараа ажиллуулна (progression хэсгийн `20261118100000_progression.sql`-тэй дараалал хамаагүй: хоёулаа `entitlements` хүснэгтийн ижил хэсгийг агуулдаг).
+- **Хүснэгт:** `entitlements` (эзэмшиж буй `remove_ads`, `pass_*`), `purchases` (Google Play-ийн худалдан авалт бүр, токен давтагдашгүй), `ad_rewards` (шагналтай зар бүр). Тоглогч зөвхөн өөрийнхөө мөрийг уншина, шууд бичих эрхгүй. Бүртгэл устгахад гурвуулаа устна.
+- **Функц:** тоглогчид `my_entitlements()`, `claim_ad_reward(placement, ref, coins)` (өдрийн хязгаартай: үнэгүй зоос 30 × 5, зоос 2 дахин 150 хүртэл × 10, Улаанбаатарын цагаар). Зөвхөн service role (Edge Function): `record_purchase` (нэг токенд нэг удаа олгоно), `revoke_purchase` (буцаалт).
+- **Edge Function:** `supabase/functions/verify-purchase` (тоглоом худалдан авалт бүрийг илгээнэ; Google Play Developer API-аар шалгаад олгоно), `supabase/functions/voided-purchases` (өдөр бүр Supabase Cron-оор буцаалтыг хасна). Secret: `GOOGLE_SERVICE_ACCOUNT_JSON`, `PLAY_PACKAGE_NAME`, `CRON_SECRET`.
+
+```bash
+supabase secrets set GOOGLE_SERVICE_ACCOUNT_JSON="$(jq -c . /path/to/play-verifier.json)" \
+  PLAY_PACKAGE_NAME=com.anaraa.khanblocks CRON_SECRET="$(openssl rand -hex 24)"
+supabase functions deploy verify-purchase
+supabase functions deploy voided-purchases --no-verify-jwt
+```
+
+- Онлайн build-д худалдан авалт зөвхөн сервер баталгаажуулсны дараа олгогдоно. Функцийг байршуулаагүй бол олгогдохгүй, Google 3 хоногийн дараа мөнгийг буцаана: худалдан авалттай онлайн build гаргахаас **өмнө** байршуулна.
+- **Шалгах:** `supabase/tests/local_test.sql`-ийн «payments and ads» хэсэг (SQL), `supabase/functions/tests/play_test.mjs` (Node 22, `tests/game_test.py`-ийн «store» бүлэг ажиллуулдаг).
