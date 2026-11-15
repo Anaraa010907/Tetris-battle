@@ -4,6 +4,8 @@ name: Build release AAB for Google Play
 # Google Play -> Run workflow. Needs four repository secrets with the upload key (docs/LAUNCH.md):
 #   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
 # Optional: SUPABASE_URL and SUPABASE_ANON_KEY make it the online version (docs/SUPABASE.md).
+# Optional: ADMOB_APP_ID, ADMOB_REWARDED_ID and ADMOB_INTERSTITIAL_ID (all three) give it real ads; without them it
+# shows Google's test ads (docs/MONETIZATION.md). The run summary says which.
 
 on:
   workflow_dispatch:
@@ -117,6 +119,24 @@ jobs:
           echo "versionCode $vc"
           echo "- versionCode: $vc" >> "$GITHUB_STEP_SUMMARY"
 
+      # Real AdMob IDs only from secrets; build.gradle refuses a partial set and falls back to test IDs without any
+      - name: Ads (real or test IDs)
+        env:
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_REWARDED_ID: ${{ secrets.ADMOB_REWARDED_ID }}
+          ADMOB_INTERSTITIAL_ID: ${{ secrets.ADMOB_INTERSTITIAL_ID }}
+        run: |
+          if [ -n "$ADMOB_APP_ID" ] && [ -n "$ADMOB_REWARDED_ID" ] && [ -n "$ADMOB_INTERSTITIAL_ID" ]; then
+            note='Ads: REAL AdMob IDs from the ADMOB_* secrets'
+          elif [ -n "$ADMOB_APP_ID$ADMOB_REWARDED_ID$ADMOB_INTERSTITIAL_ID" ]; then
+            echo "::error::Set all three ADMOB_APP_ID, ADMOB_REWARDED_ID, ADMOB_INTERSTITIAL_ID secrets, or none. See docs/MONETIZATION.md."
+            exit 1
+          else
+            note="Ads: Google's TEST ad IDs (add the three ADMOB_* secrets for real ads, docs/MONETIZATION.md)"
+          fi
+          echo "$note"
+          echo "- $note" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Build signed release bundle
         working-directory: android
         env:
@@ -124,6 +144,9 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_REWARDED_ID: ${{ secrets.ADMOB_REWARDED_ID }}
+          ADMOB_INTERSTITIAL_ID: ${{ secrets.ADMOB_INTERSTITIAL_ID }}
         run: gradle bundleRelease --no-daemon
 
       - name: Remove the key file

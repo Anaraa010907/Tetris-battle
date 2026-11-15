@@ -6,6 +6,29 @@ plugins {
 // (see docs/LAUNCH.md). Without them, release builds are left unsigned.
 def keystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
 
+// AdMob (docs/MONETIZATION.md). Real IDs come only from the environment: the release workflow passes the
+// ADMOB_APP_ID, ADMOB_REWARDED_ID and ADMOB_INTERSTITIAL_ID repository secrets. Without them, and in every debug
+// build, Google's public test IDs are used, so no build shows real ads by accident. Nothing real is in the repo.
+def TEST_APP_ID = 'ca-app-pub-3940256099942544~3347511713'
+def TEST_REWARDED_ID = 'ca-app-pub-3940256099942544/5224354917'
+def TEST_INTERSTITIAL_ID = 'ca-app-pub-3940256099942544/1033173712'
+def adEnv = { String name, String pattern ->
+    def v = (System.getenv(name) ?: '').trim()
+    if (v && !(v ==~ pattern)) throw new GradleException("${name} does not look like an AdMob ID (docs/MONETIZATION.md)")
+    return v
+}
+def realAppId = adEnv('ADMOB_APP_ID', /ca-app-pub-\d{16}~\d{10}/)
+def realRewardedId = adEnv('ADMOB_REWARDED_ID', /ca-app-pub-\d{16}\/\d{10}/)
+def realInterstitialId = adEnv('ADMOB_INTERSTITIAL_ID', /ca-app-pub-\d{16}\/\d{10}/)
+def realAds = realAppId && realRewardedId && realInterstitialId
+if (!realAds && (realAppId || realRewardedId || realInterstitialId)) {
+    throw new GradleException('Set all three of ADMOB_APP_ID, ADMOB_REWARDED_ID and ADMOB_INTERSTITIAL_ID, or none (test ads)')
+}
+// Optional, for testing on a phone: its hashed device ID from logcat (test ads with real IDs, UMP debug)
+def testDevice = (System.getenv('ADS_TEST_DEVICE') ?: '').trim()
+if (testDevice && !(testDevice ==~ /[0-9A-Fa-f]{32}/)) throw new GradleException('ADS_TEST_DEVICE must be the 32-character hashed device ID')
+def q = { String s -> '"' + s + '"' }
+
 android {
     namespace 'com.anaraa.khanblocks'
     compileSdk 36
@@ -15,8 +38,12 @@ android {
         minSdk 24
         targetSdk 36
         // The release workflow sets NEON_VERSION_CODE so every upload to Google Play gets a higher number.
-        versionCode((System.getenv('NEON_VERSION_CODE') ?: '4') as int)
-        versionName '1.3'
+        versionCode((System.getenv('NEON_VERSION_CODE') ?: '5') as int)
+        versionName '1.4'
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     signingConfigs {
@@ -31,11 +58,28 @@ android {
     }
 
     buildTypes {
+        debug {
+            manifestPlaceholders = [admobAppId: TEST_APP_ID]
+            buildConfigField 'String', 'ADMOB_APP_ID', q(TEST_APP_ID)
+            buildConfigField 'String', 'ADMOB_REWARDED_ID', q(TEST_REWARDED_ID)
+            buildConfigField 'String', 'ADMOB_INTERSTITIAL_ID', q(TEST_INTERSTITIAL_ID)
+            buildConfigField 'boolean', 'ADS_TEST', 'true'
+            buildConfigField 'String', 'ADS_TEST_DEVICE', q(testDevice)
+            // UMP_DEBUG_EEA=true: the consent form behaves as in the EEA (emulators, or ADS_TEST_DEVICE phones)
+            buildConfigField 'boolean', 'UMP_DEBUG_EEA', (System.getenv('UMP_DEBUG_EEA') == 'true').toString()
+        }
         release {
             minifyEnabled false
             if (keystorePath) {
                 signingConfig signingConfigs.release
             }
+            manifestPlaceholders = [admobAppId: realAds ? realAppId : TEST_APP_ID]
+            buildConfigField 'String', 'ADMOB_APP_ID', q(realAds ? realAppId : TEST_APP_ID)
+            buildConfigField 'String', 'ADMOB_REWARDED_ID', q(realAds ? realRewardedId : TEST_REWARDED_ID)
+            buildConfigField 'String', 'ADMOB_INTERSTITIAL_ID', q(realAds ? realInterstitialId : TEST_INTERSTITIAL_ID)
+            buildConfigField 'boolean', 'ADS_TEST', (!realAds).toString()
+            buildConfigField 'String', 'ADS_TEST_DEVICE', q(testDevice)
+            buildConfigField 'boolean', 'UMP_DEBUG_EEA', 'false'
         }
     }
 
@@ -43,4 +87,18 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+dependencies {
+    // GMA Next-Gen SDK (Google's preferred Android ads SDK since July 2026); it brings the UMP SDK as well
+    implementation 'com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.6.0'
+    implementation 'com.google.android.ump:user-messaging-platform:4.0.0'
+    // Play Billing Library 9 (Play requires 8 or newer for new apps and updates)
+    implementation 'com.android.billingclient:billing:9.1.0'
+}
+
+// The Next-Gen SDK must not be mixed with the legacy Google Mobile Ads SDK (Google's own sample excludes it).
+configurations.configureEach {
+    exclude group: 'com.google.android.gms', module: 'play-services-ads'
+    exclude group: 'com.google.android.gms', module: 'play-services-ads-lite'
 }
