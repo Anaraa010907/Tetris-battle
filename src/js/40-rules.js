@@ -34,7 +34,7 @@ const emptyRow=()=>Array(W).fill(0);
 function makeBoard(pieceSeed){
   return {cells:Array.from({length:H},emptyRow),queue:[],rng:mulberry(pieceSeed),piece:null,hold:-1,canHold:true,
     fall:0,grounded:0,resets:0,lowest:0,lastRot:false,lastKick:0,garbage:[],combo:-1,b2b:-1,
-    pieces:0,attack:0,lines:0,garbageCleared:0,time:0,slow:0,shield:false,dead:false};
+    pieces:0,attack:0,lines:0,garbageCleared:0,time:0,slow:0,shield:false,dead:false,tspins:0,quads:0,maxCombo:0};
 }
 function refill(b){while(b.queue.length<7){const g=[0,1,2,3,4,5,6];for(let i=6;i>0;i--){const j=Math.floor(b.rng()*(i+1));[g[i],g[j]]=[g[j],g[i]]}b.queue.push(...g)}}
 function spawn(b){refill(b);const id=b.queue.shift();refill(b);b.canHold=true;place(b,id)}
@@ -121,6 +121,7 @@ function lock(b){
   if(n>0){b.combo++;if(n===4||spin)b.b2b++;else b.b2b=-1}else b.combo=-1;
   const atk=attackFor(n,spin,b.b2b,b.combo,pc);
   b.lines+=n;b.garbageCleared+=gc;
+  if(n){if(spin)b.tspins++;if(n===4)b.quads++;if(b.combo>b.maxCombo)b.maxCombo=b.combo}   // for daily missions (56-progress)
   if(atk>0){
     b.attack+=atk;let rest=atk;
     while(rest>0&&b.garbage.length){const g=b.garbage[0],k=Math.min(g.rows,rest);g.rows-=k;rest-=k;if(!g.rows)b.garbage.shift()}

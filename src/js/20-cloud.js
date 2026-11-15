@@ -54,7 +54,8 @@ function netView(){
 function applyServer(p){
   if(!p||!p.id)return;
   Object.assign(profile,{rank:p.rating,wins:p.wins,losses:p.losses,coins:p.coins,streak:p.streak,name:p.username,
-    cloudClaim:p.last_claim||'',cloudId:p.id,owned:[0,...new Set((p.owned||[]).filter(v=>v===1||v===2))]});
+    cloudClaim:p.last_claim||'',cloudId:p.id,owned:[0,...new Set((p.owned||[]).filter(v=>v>0&&skinById(v).id===v))]});
+  applyProgress(p);                                    // xp, level, missions, season pass (when the server has them)
   if(AVATARS.includes(p.avatar))profile.avatar=p.avatar;
   if(profile.owned.includes(p.theme))profile.theme=p.theme;
   save();profileView();
@@ -88,7 +89,8 @@ function sync(force){
         p=await Cloud.rpc('import_local',{p_rating:profile.rank,p_wins:profile.wins,p_losses:profile.losses,p_coins:profile.coins,p_owned:profile.owned});
         if(name!==p.username&&name.length>=3)p=await Cloud.rpc('set_profile',{p_username:name,p_avatar:avatar,p_theme:null}).catch(()=>p);
       }
-      Cloud.state='online';applyServer(p);await flushOutbox();
+      if(!profile.cloudId)p=await importProgress(p);          // offline XP and season XP (56-progress), once
+      Cloud.state='online';applyServer(p);await flushOutbox();await flushProgress();
     }catch(e){Cloud.state='offline'}
     finally{syncing=null;netView()}
   })();
@@ -96,7 +98,8 @@ function sync(force){
 function errText(e){
   const m=e&&e.message;
   return t({username_taken:'errNameTaken',not_enough_coins:'notEnough',already_claimed:'claimed',network:'errNetwork',
-    'Invalid login credentials':'accBadCloud',bad_profile:'accBad'}[m]||'errGeneric');
+    'Invalid login credentials':'accBadCloud',bad_profile:'accBad',not_done:'errNotDone',already_rerolled:'errRerolled',no_pass:'errNoPass',
+    not_reached:'errNotReached',not_for_sale:'errNotForSale'}[m]||'errGeneric');
 }
 function msgBox(text,back){modal('<p>'+esc(text)+'</p><button class="wide" id="msgOk">'+t('done')+'</button>');$('msgOk').onclick=back||closeModal}
 

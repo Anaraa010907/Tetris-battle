@@ -98,6 +98,7 @@ function render(){
     const b=boards[0],o=boards[1],secs=Math.max(1,b.time);
     applySkinCss(skin);
     drawBoard(ctx,b,280,560,{ghost:true,warn:true});
+    skinFxFrame(b);                              // the dearer skins' animated touch, on its own layer (59-skins.js)
     drawBoard(rctx,o,120,240,{});
     drawQueue(b);
     next('hold',b.hold,13,!b.canHold);

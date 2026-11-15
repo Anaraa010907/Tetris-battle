@@ -17,7 +17,8 @@ function ctlClean(v){
     flick:bool(v.flick,true),buttons:bool(v.buttons,true),mirror:bool(v.mirror,false),size:one(v.size,['normal','large'])};
 }
 const freshProfile=keep=>Object.assign({name:'NOMAD',avatar:'👑',rank:1000,wins:0,losses:0,coins:0,streak:0,lastClaim:'',account:null,
-  theme:0,owned:[0],diff:1,lang:'mn',sound:true,vibration:true,powers:false,fmt:'single',ctl:ctlClean()},keep||{});
+  theme:0,owned:[0],diff:1,lang:'mn',sound:true,vibration:true,powers:false,fmt:'single',ctl:ctlClean(),
+  xp:0,xpDay:'',xpToday:0,firstWinDay:'',missions:null,pass:{}},keep||{});
 let profile=freshProfile();
 try{
   const saved=JSON.parse(localStorage.getItem('neon-duel')||'{}');
@@ -33,9 +34,15 @@ try{
     if(['mn','en'].includes(saved.lang))profile.lang=saved.lang;
     if([0,1,2].includes(saved.diff))profile.diff=saved.diff;
     if(['single','ft3'].includes(saved.fmt))profile.fmt=saved.fmt;
-    if(Array.isArray(saved.owned))profile.owned=[0,...new Set(saved.owned.filter(v=>v===1||v===2))];
+    // skin ids 1-39 (59-skins.js checks them against the registry once it is loaded)
+    if(Array.isArray(saved.owned))profile.owned=[0,...new Set(saved.owned.filter(v=>Number.isInteger(v)&&v>0&&v<40))];
     if(profile.owned.includes(saved.theme))profile.theme=saved.theme;
     profile.ctl=ctlClean(saved.ctl);
+    // progression (56-progress.js re-checks missions and the season pass against its tables)
+    for(const k of ['xp','xpToday'])if(Number.isFinite(saved[k]))profile[k]=Math.max(0,Math.floor(saved[k]));
+    for(const k of ['xpDay','firstWinDay'])if(typeof saved[k]==='string')profile[k]=saved[k];
+    if(saved.missions&&typeof saved.missions==='object')profile.missions=saved.missions;
+    if(saved.pass&&typeof saved.pass==='object'&&!Array.isArray(saved.pass))profile.pass=saved.pass;
   }
 }catch(e){}
 function save(){try{localStorage.setItem('neon-duel',JSON.stringify(profile))}catch(e){}}

@@ -70,25 +70,64 @@ function diffView(){document.querySelectorAll('[data-diff]').forEach(b=>{const o
 document.querySelectorAll('[data-diff]').forEach(b=>b.onclick=()=>{profile.diff=+b.dataset.diff;save();diffView()});
 diffView();
 $('record').closest('.panel').onclick=stats;
-function shop(){
-  // one button per skin in the registry (59-skins.js), each with a scene drawn by the real tile sprites
-  let h='<h2>'+t('shop')+'</h2><p>◈ '+profile.coins+' · '+t('soon')+'</p><div class="stack">';
-  for(const k of SKINS){
-    const on=currentSkin()===k,own=!k.price||profile.owned.includes(k.id);
-    h+='<button class="skin'+(on?' on':'')+'" data-theme="'+k.id+'"><canvas class="skinprev" width="'+150*SKIN_SCALE+'" height="'+60*SKIN_SCALE+'"></canvas>'
-      +'<span class="skintext"><b>'+t(k.name)+'</b><em>'+t(k.desc)+'</em><small>'+(on?t('selected'):own?t('equip'):t('unlockFor').replace('{p}',k.price))+'</small></span></button>';
-  }
-  h+='<button id="adInfo">'+t('coinsHow')+'</button><button id="shopDone">'+t('done')+'</button></div>';
+/* ---------- shop ----------
+Three tabs: skins (rendered previews from the registry in 59-skins.js; owned / equipped / price / season exclusive),
+the season pass (57-pass.js) and #shopIap, which the payments agent fills (window.renderIapSection, 55-store.js:
+coin packs, remove ads, free coins, restore). Skins only change how blocks look. */
+let shopTab='skins';
+function skinLabel(k){
+  if(currentSkin()===k)return t('selected');
+  if(skinOwned(k))return t('equip');
+  if(k.season)return '◆ '+t('seasonSkinNote').replace('{s}',t('season_'+k.season));
+  return t('unlockFor').replace('{p}',k.price);
+}
+function skinButton(k){
+  const on=currentSkin()===k;
+  return '<button class="skin'+(on?' on':'')+(skinOwned(k)?' owned':'')+(k.season?' season':'')+'" data-theme="'+k.id+'">'
+    +'<span class="skwrap'+(k.fx?' fx'+k.fx.kind[0]:'')+'"><canvas class="skinprev" width="'+150*SKIN_SCALE+'" height="'+60*SKIN_SCALE+'"></canvas></span>'
+    +'<span class="skintext"><b>'+t(k.name)+'</b><em>'+t(k.desc)+'</em><small>'+skinLabel(k)+'</small></span></button>';
+}
+function shop(tab){
+  if(typeof tab==='string')shopTab=tab;
+  const tabs=[['skins','tabSkins'],['pass','tabPass'],['iap','tabCoins']];
+  let h='<div class="shophead"><h2>'+t('shop')+'</h2><span class="coinbal" aria-label="'+t('coins')+'">◈ <b>'+profile.coins+'</b></span></div>'
+    +'<div class="seg shoptabs" role="tablist">'+tabs.map(([k,l])=>'<button role="tab" data-tab="'+k+'"'+(shopTab===k?' class="on" aria-selected="true"':' aria-selected="false"')+'>'+t(l)+'</button>').join('')+'</div>';
+  h+='<div id="shopSkins"'+(shopTab==='skins'?'':' hidden')+'>';
+  for(const [label,list] of [['skinsStarter',SKINS.filter(k=>k.id<3)],['skinsCoin',SKINS.filter(k=>k.id>=3&&!k.season)],['skinsSeason',SKINS.filter(k=>k.season)]])
+    if(list.length)h+='<span class="eyebrow skgroup">'+t(label)+'</span><div class="stack">'+list.map(skinButton).join('')+'</div>';
+  h+='<div class="stack skfoot"><button id="adInfo">'+t('coinsHow')+'</button></div></div>';
+  h+='<div id="shopPass"'+(shopTab==='pass'?'':' hidden')+'></div>';
+  h+='<div id="shopIap"'+(shopTab==='iap'?'':' hidden')+'></div>';
+  h+='<div class="stack shopdone"><button id="shopDone">'+t('done')+'</button></div>';
   modal(h);
-  document.querySelectorAll('[data-theme]').forEach(b=>drawSkinPreview(b.querySelector('canvas'),skinById(+b.dataset.theme)));
+  document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>shop(b.dataset.tab));
+  if(shopTab==='skins')document.querySelectorAll('[data-theme]').forEach(b=>drawSkinPreview(b.querySelector('canvas'),skinById(+b.dataset.theme),true));
+  if(shopTab==='pass')renderPass($('shopPass'),()=>shop('pass'));
+  if(window.renderIapSection){try{window.renderIapSection($('shopIap'))}catch(e){}}
+  else $('shopIap').innerHTML='<p class="muted iapnote">'+t('iapAppOnly')+'</p>';
   $('shopDone').onclick=closeModal;
   $('adInfo').onclick=()=>info('coinsHow','coinsInfo');
-  document.querySelectorAll('[data-theme]').forEach(b=>b.onclick=async()=>{
-    const k=skinById(+b.dataset.theme),i=k.id;
-    if(Cloud.ready()){try{applyServer(await Cloud.rpc('buy_theme',{p_theme:i}));shop()}catch(e){msgBox(errText(e),shop)}return}
-    if(!profile.owned.includes(i)){if(profile.coins<k.price){info('shop','notEnough');return}profile.coins-=k.price;profile.owned.push(i)}
-    profile.theme=i;save();profileView();shop();
+  document.querySelectorAll('[data-theme]').forEach(b=>b.onclick=()=>{
+    const k=skinById(+b.dataset.theme);
+    if(!skinOwned(k)&&k.season){shop('pass');return}           // season skins come from the pass
+    if(!skinOwned(k)&&k.price>=300){buySkinAsk(k);return}       // bigger prices ask first
+    buySkin(k);
   });
+}
+async function buySkin(k){
+  const i=k.id;
+  if(Cloud.ready()){try{applyServer(await Cloud.rpc('buy_theme',{p_theme:i}));shop()}catch(e){msgBox(errText(e),shop)}return}
+  if(!skinOwned(k)){if(profile.coins<k.price){info('shop','notEnough');return}profile.coins-=k.price;profile.owned.push(i)}
+  profile.theme=i;save();profileView();shop();
+}
+function buySkinAsk(k){
+  const can=profile.coins>=k.price;
+  modal('<span class="eyebrow">'+t('shop')+'</span><h2>'+t(k.name)+'</h2><span class="skwrap big'+(k.fx?' fx'+k.fx.kind[0]:'')+'"><canvas class="skinbig" width="'+300*SKIN_SCALE+'" height="'+120*SKIN_SCALE+'"></canvas></span>'
+    +'<p>'+t(k.desc)+'</p><p class="muted small">◈ '+profile.coins+' · '+t('skinBuyNote')+'</p><div class="stack"><button class="primary" id="skBuy"'+(can?'':' disabled')+'>'
+    +t('unlockFor').replace('{p}',k.price)+'</button>'+(can?'':'<p class="muted small">'+t('notEnough')+'</p>')+'<button id="skBack">'+t('cancel')+'</button></div>');
+  drawSkinPreview(document.querySelector('.skinbig'),k);
+  $('skBuy').onclick=()=>buySkin(k);
+  $('skBack').onclick=()=>shop();
 }
 $('shop').onclick=shop;
 $('ranked').onclick=onlineMenu;

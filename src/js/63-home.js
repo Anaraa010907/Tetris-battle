@@ -89,12 +89,27 @@ function streakView(){
   el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2.4 1.2-4 2.6-5.3.2 1.8 1 3 2.4 3.6C11.4 8.6 11 5 12 2z"/></svg>'
     +(n?'<b>'+t('streakN').replace('{n}',n)+'</b>':'')+(can?'<span>'+t('dailyReady')+'</span>':'');
 }
+// the daily missions chip next to the streak chip (56-progress.js): done / 3, glowing while a reward waits
+let homeMissions='',homeMissionsAt=0;
+function missionChipView(){
+  const now=performance.now();if(now-homeMissionsAt<500&&homeMissions)return;homeMissionsAt=now;
+  const m=missionsSummary(),key=profile.lang+m.claimed+'|'+m.ready+'|'+profile.missions.day+'|'+homeStreak;
+  if(key===homeMissions)return;homeMissions=key;
+  const el=$('missions');el.hidden=false;el.classList.toggle('ready',m.ready>0);el.classList.toggle('done',m.claimed===3);
+  el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6zM9 8h7M9 12h7M9 16h4"/><path class="mtick" d="M3 8l1.2 1.2L6.5 7M3 12.5l1.2 1.2 2.3-2.2"/></svg>'
+    +'<span>'+t('missionsChip')+'</span><b>'+m.claimed+'/3</b>'+(m.ready?'<i class="mdot"></i>':'');
+  el.setAttribute('aria-label',t('missions')+' '+m.claimed+'/3');
+  // both chips share one row above the profile card: next to a long streak text, only the icon and count show
+  el.classList.remove('compact');
+  if(!$('streak').hidden&&$('streak').offsetWidth+10+el.offsetWidth>456)el.classList.add('compact');
+}
 function homeView(){
   const skin=currentSkin();
   if(homeSkin!==skin){if(!homeSkin)drawHomeArt();homeSkin=skin;homePieces(skin)}
-  streakView();
+  streakView();missionChipView();
 }
 $('streak').onclick=()=>stats();
+$('missions').onclick=()=>missionsDialog();
 // The wordmark comes from t('brandName'): the first word large in gold, the rest under it between ornaments.
 // Font sizes shrink to fit, so any name of one or two words fits the logo and the header.
 function brandLogo(){

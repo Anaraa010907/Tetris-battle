@@ -6,7 +6,7 @@ const powersOn=()=>!!series&&series.mode==='practice'&&profile.powers;   // powe
 function screen(id){$('title').inert=false;$('gameplay').inert=false;for(const s of ['title','gameplay','result','modal'])$(s).hidden=s!==id}
 function clearOver(){clearInterval(overTimer);overTimer=0;$('gameover').hidden=true}
 function newSeries(mode,target,extra){
-  return Object.assign({mode,target,me:0,foe:0,game:1,pieces:0,attack:0,gc:0,time:0,startRank:profile.rank,startLetter:rankLetter()},extra);
+  return Object.assign({mode,target,me:0,foe:0,game:1,pieces:0,attack:0,gc:0,time:0,lines:0,tspins:0,quads:0,combo:0,startRank:profile.rank,startLetter:rankLetter()},extra);
 }
 function setRival(name,label){rival=name;$('rivalName').textContent=name+' · '+label.toUpperCase();$('vs').textContent='VS '+name}
 function startPractice(){
@@ -44,6 +44,7 @@ function freezeRound(win){
   const b=boards[0];
   state='over';heldAction='';audio.stopMusic();sound(win?'clear':'lock');vibrate();
   series.pieces+=b.pieces;series.attack+=b.attack;series.gc+=b.garbageCleared;series.time+=b.time;
+  series.lines+=b.lines;series.tspins+=b.tspins;series.quads+=b.quads;series.combo=Math.max(series.combo,b.maxCombo);
   $('gameover').innerHTML='<b>GAME!</b><div id="gdet"></div>';
   $('gameover').hidden=false;
 }
@@ -69,11 +70,15 @@ function finishRound(loser){
   showRoundResult(win);
 }
 const fmtTime=s=>Math.floor(s/60)+':'+(s%60).toFixed(1).padStart(4,'0');
+// Coins for a finished match: [loss, win] per format (the server's report_match / finish_online use the same
+// numbers; docs/PROGRESSION.md has the whole economy). A friendly match pays none.
+const MATCH_COINS={single:[10,30],ft3:[20,75]};
+const matchCoins=(mode,ft,win)=>mode==='friend'?0:MATCH_COINS[ft?'ft3':'single'][win?1:0];
 function finishMatch(win){
   clearOver();
   state='result';
   const s=series,friend=s.mode==='friend',ranked=s.mode==='bot'||s.mode==='online',online=isOnline(),ft=s.target>1;
-  const wasPlaced=placed(),oldTitle=titleIdx(profile.rank),before=profile.rank,coins=friend?0:ft?(win?150:40):(win?60:20);
+  const wasPlaced=placed(),oldTitle=titleIdx(profile.rank),before=profile.rank,coins=matchCoins(s.mode,ft,win);
   const capped=s.mode==='bot'&&Cloud.on()&&before>=BOT_RP_CAP;
   if(!online){
     // practice pays coins only; a ranked bot game also moves the rating
@@ -83,6 +88,10 @@ function finishMatch(win){
     }
     profile.coins+=coins;save();
   }
+  // XP, level, daily missions and season pass (56-progress.js): counted here at once, confirmed by the server later.
+  // ref identifies the match for the server and the payments hooks: the online match id, or a new id.
+  const ref=s.matchId||newMatchRef(),info={mode:s.mode,win,coins,ref};
+  s.ref=ref;s.gain=progressMatch(s,win,ref);
   const secs=Math.max(1,s.time);
   const pps=(s.pieces/secs).toFixed(2),apm=(s.attack/secs*60).toFixed(1),vs=((s.attack+s.gc)/secs*100).toFixed(1);
   $('resultEyebrow').textContent=t(friend?'friendTag':ranked?'rankedTag':'practiceTag')+(s.reason?' · '+t(s.reason):ft?' · '+s.me+' – '+s.foe:'');
@@ -101,6 +110,9 @@ function finishMatch(win){
   };
   show();
   screen('result');
+  progressResult(s);
+  window.renderResultAd?.($('resultAd'),info);         // payments agent (55-store.js): e.g. watch an ad for double coins
+  window.onMatchEnd?.(info);                            // payments agent: interstitial pacing (never for online/friend)
   if(!roundEndSent){roundEndSent=true;if(window.parent!==window)window.parent.postMessage({source:'mable-playable',type:'round_end',score:Math.round(+vs)},'*')}
   if(online){if(!friend)sync(true).then(()=>{waiting=!Cloud.ready();if(state==='result'&&series===s)show()})}
   else if(Cloud.on()){
@@ -108,7 +120,7 @@ function finishMatch(win){
     outbox.push({p_kind:ranked?'bot':'ai',p_opponent:rival,p_opponent_rating:rivalRating,p_format:ft?'ft3':'single',p_won:win,
       p_score_me:s.me,p_score_foe:s.foe,p_stats:{pps:+pps,apm:+apm,vs:+vs,time:Math.round(s.time),pieces:s.pieces,attack:s.attack}});
     saveOutbox();
-    (Cloud.ready()?flushOutbox():sync()).then(()=>{if(state==='result'&&series===s)show()});
+    (Cloud.ready()?flushOutbox().then(flushProgress):sync()).then(()=>{if(state==='result'&&series===s)show()});
   }
 }
 function leaveMatch(){Net.stop();clearOver();series=null;state='title';screen('title');profileView()}

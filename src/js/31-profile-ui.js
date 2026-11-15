@@ -14,6 +14,11 @@ function stats(){
   }else h+='<p class="muted small">'+t('topRank')+'</p>';
   h+='<p>'+profile.wins+' '+t('wins')+' · '+profile.losses+' '+t('losses')+(games?' · '+Math.round(profile.wins/games*100)+'% '+t('winRate'):'')+'</p>';
   h+='<div class="row"><button style="flex:1" id="ladderBtn">'+t('ladder')+'</button><button style="flex:1" id="lbBtn">'+t('leaderboard')+'</button></div>';
+  // level, XP and the ways to earn it (56-progress.js, 57-pass.js)
+  const lv=levelInfo(profile.xp);
+  h+='<div class="lvrow">'+lvlBadge(lv.level,48)+'<div><b>'+t('levelN').replace('{n}',lv.level)+'</b><div class="prog"><i style="width:'+(lv.level>=LEVEL_MAX?100:lv.into/lv.need*100)+'%;background:#5fd0ff"></i></div>'
+    +'<span class="muted small">'+(lv.level>=LEVEL_MAX?t('xpTop'):t('xpToNext').replace('{x}',lv.need-lv.into).replace('{n}',lv.level+1))+'</span></div></div>'
+    +'<div class="row"><button style="flex:1" id="pfMissions">'+t('missionsChip')+'</button><button style="flex:1" id="pfPass">◆ '+t('seasonPass')+'</button></div>';
   h+='<div class="panel" style="margin:16px 0"><b>'+t('daily')+'</b><p class="muted">'+(profile.streak||0)+' '+t('streakDays')+'</p>'+streakDots()+'<button class="primary wide" id="claimDaily"'+(can?'':' disabled')+'>'+(can?t('claim')+' · +'+bonusFor()+' '+t('coins'):t('claimed'))+'</button></div>';
   const inputs='<input id="aUser" placeholder="'+t(Cloud.on()?'email':'user')+'" maxlength="'+(Cloud.on()?80:16)+'" style="'+INP+'"'+(Cloud.on()?' type="email" autocomplete="email"':'')+'><input id="aPw" type="password" placeholder="'+t('pass')+'" style="'+INP+'">';
   if(Cloud.on()){
@@ -35,6 +40,8 @@ function stats(){
   $('statsDone').onclick=closeModal;
   $('delAcc').onclick=()=>deleteDialog(stats);
   $('ladderBtn').onclick=ladder;
+  $('pfMissions').onclick=()=>missionsDialog(stats);
+  $('pfPass').onclick=()=>passDialog(stats);
   $('lbBtn').onclick=leaderboard;
   if(Cloud.ready()&&pl)Cloud.rpc('my_position').then(n=>{if(n&&$('myPos'))$('myPos').textContent=' · #'+n}).catch(()=>{});
   if(Cloud.on()){
@@ -104,6 +111,10 @@ async function leaderboard(){
 function profileView(){
   const pn=$('profileName'),av=document.createElement('span'),nm=document.createElement('span');
   av.className='av';av.textContent=profile.avatar;nm.textContent=profile.name;pn.replaceChildren(av,nm);
+  const lv=levelInfo(profile.xp),lc=document.createElement('span');
+  lc.className='lvchip';lc.innerHTML='<svg viewBox="0 0 40 40" aria-hidden="true"><path d="'+LV_STAR+'"/></svg>'+lv.level;
+  lc.setAttribute('aria-label',t('levelAria').replace('{n}',lv.level).replace('{x}',lv.into).replace('{y}',lv.need));pn.append(lc);
+  $('xpLine').firstElementChild.style.width=(lv.level>=LEVEL_MAX?100:lv.into/lv.need*100)+'%';
   if(canClaim()){const d=document.createElement('i');d.className='dot';d.title=t('daily');pn.append(d)}
   $('record').textContent=profile.wins+' '+t('wins')+' • '+profile.losses+' '+t('losses')+' • '+profile.coins+' '+t('coins');
   $('rank').innerHTML=rankPill();

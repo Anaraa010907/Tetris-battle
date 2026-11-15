@@ -1,0 +1,113 @@
+/* progression: level and XP, daily missions, season pass, the shop tabs (56-progress.js, 57-pass.js, 80-ui.js).
+   Built from the brand language in 45-brand.css: navy panels, the cyan-to-violet edge, champion gold. XP is sky blue. */
+.lvbadge{flex:none;overflow:visible;filter:drop-shadow(0 0 6px #ffbf3a66)}
+/* home: level chip and XP line on the profile card, missions chip beside the streak chip */
+.lvchip{display:inline-flex;align-items:center;gap:4px;height:23px;padding:0 9px 0 5px;border-radius:999px;font-size:13px;font-weight:800;color:#ffe39a;
+  border:1.2px solid #ffcf6a8c;background:#2a1d0a73;font-variant-numeric:tabular-nums;letter-spacing:0}
+.lvchip svg{width:15px;height:15px;fill:#ffcf6a;filter:drop-shadow(0 0 4px #ffbf3a88)}
+#xpLine{position:absolute;left:27px;right:17px;bottom:9px;height:4px;border-radius:3px;background:#0b1428;overflow:hidden}
+#xpLine b{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#3fb5ff,#9ae8ff);box-shadow:0 0 8px #5fd0ff;transition:width .6s}
+#missions{left:auto;right:24px;top:558px;height:32px;min-height:0;padding:0 13px 0 10px;display:flex;align-items:center;gap:7px;border-radius:999px;font-size:13.5px;font-weight:700;
+  color:#dfe8ff;border:1.5px solid transparent;background:linear-gradient(#0a1438e6,#0a1438e6) padding-box,var(--edge) border-box;box-shadow:0 0 14px #2563eb33}
+#missions svg{width:17px;height:17px;fill:none;stroke:#8fd3ff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 4px #5fd0ff88)}
+#missions b{font-weight:800;color:#ffd35c;font-variant-numeric:tabular-nums}
+#missions .mdot{width:8px;height:8px;border-radius:50%;background:#1cf3a9;box-shadow:0 0 8px #1cf3a9}
+#missions.ready{border:1.5px solid #ffcf6a;background:#1a1226e6;animation:streakglow 1.8s ease-in-out infinite}
+#missions.compact span{display:none}
+#missions.done svg{stroke:#1cf3a9;filter:drop-shadow(0 0 4px #1cf3a988)}
+@media(prefers-reduced-motion:reduce){#missions.ready{animation:none}}
+/* result: XP gained, notes, and the payments agent's container */
+#xpProg{margin:16px 2px 0;text-align:left}
+#xpProg:empty,#resultAd:empty{display:none}
+.xphead{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-weight:800;font-size:16px}
+.xphead .xpgain{margin-left:auto;font-size:18px;color:#9ae8ff;text-shadow:0 0 12px #5fd0ff88;font-variant-numeric:tabular-nums}
+.xpnotes{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+.xpnotes span{font-size:12.5px;color:#a7b3cc}
+button.xpnote{min-height:0;padding:8px 12px;border-radius:12px;font-size:13px;font-weight:700;text-align:left;line-height:1.3;color:#ffe9b0;
+  background:linear-gradient(#1a1630f0,#1a1630f0) padding-box,linear-gradient(90deg,#ffd76a,#ff9f3c) border-box;box-shadow:0 0 14px #ffb7032e}
+button.xpnote.pass{color:#dfe8ff;background:linear-gradient(#071437f0,#071437f0) padding-box,var(--edge) border-box;box-shadow:0 0 14px #2563eb30}
+#resultAd{margin-top:14px}
+/* daily missions dialog */
+.mlist{display:flex;flex-direction:column;gap:10px;margin:12px 0 8px}
+.mcard{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;background:#0b1428;border:1px solid #1f2d48}
+.mcard.ready{border-color:#ffcf6a;box-shadow:0 0 16px #ffbf3a33}
+.mcard.claimed{opacity:.6}
+.mic{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;border:1px solid #3fb5ff66;background:#0f2a48}
+.mcard.t1 .mic{border-color:#a98bff77;background:#221a48}
+.mcard.t2 .mic{border-color:#ffcf6a88;background:#2a1d0a}
+.mic svg{width:22px;height:22px;fill:none;stroke:#d6ecff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mcard.t2 .mic svg{stroke:#ffe39a}
+.mbody{flex:1;min-width:0}
+.mbody b{display:block;font-size:15px;line-height:1.25}
+.mprog{height:7px;border-radius:4px;background:#060c1d;border:1px solid #22324d;overflow:hidden;margin:7px 0 5px}
+.mprog i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#3fb5ff,#9ae8ff);box-shadow:0 0 8px #5fd0ff88}
+.mcard.ready .mprog i,.mcard.claimed .mprog i{background:linear-gradient(90deg,#ffab2e,#ffd45a);box-shadow:0 0 8px #ffbf3a88}
+.mmeta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#8ea6c6}
+.mmeta em{font-style:normal;font-variant-numeric:tabular-nums}
+.mmeta span{color:#ffd35c;font-weight:700;white-space:nowrap}
+#modal .mbtn{flex:none;min-height:44px;padding:0 14px;font-size:14px}
+#modal .mbtn.quiet{width:44px;padding:0;display:grid;place-items:center}
+.mbtn svg{width:20px;height:20px;fill:none;stroke:#cfe0ff;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.mdone{flex:none;width:44px;text-align:center;font-size:22px;font-weight:800;color:#1cf3a9;text-shadow:0 0 10px #1cf3a988}
+/* season pass */
+.phead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:2px 0 10px}
+.phead>div:first-child{min-width:0}
+.pname{display:block;margin:6px 0 3px;font-size:26px;font-weight:800;font-style:italic;line-height:1.1;color:#ffd56b;text-shadow:0 0 20px #ffbf3a44}
+.ptierbig{flex:none;display:flex;flex-direction:column;align-items:center;min-width:74px;padding:6px 10px;border-radius:14px;border:1.5px solid #ffcf6a88;background:#1a1226;box-shadow:0 0 16px #ffbf3a22}
+.ptierbig b{font-size:30px;line-height:1.05;color:#ffe39a;font-variant-numeric:tabular-nums}
+.ptierbig small{font-size:11px;font-weight:700;color:#c9b98a}
+.pxp{height:10px;border-radius:6px;background:#0b1428;border:1px solid #2a3c5c;overflow:hidden}
+.pxp i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#ffab2e,#ffe08a);box-shadow:0 0 10px #ffbf3a88}
+.pxpnote{margin:6px 0 10px}
+.ppremium{margin:0 0 10px;padding:10px 12px;border-radius:14px;border:1px dashed #ffcf6a66;color:#e8d9b0;font-size:13.5px;text-align:center;line-height:1.4}
+.ppremium.on{border-style:solid;color:#ffe39a;background:#2a1d0a73;font-weight:800}
+.pnote{margin:6px 0 10px}
+.pcols,.ptier{display:grid;grid-template-columns:34px 1fr 1fr;gap:8px}
+.pcols{margin:4px 0 6px;font-size:11.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#8ea6c6}
+.pcols .gold{color:#ffcf6a}
+.ptiers{display:flex;flex-direction:column;gap:6px;max-height:360px;overflow:auto;overscroll-behavior:contain;touch-action:pan-y;padding:2px 2px 2px 0}
+.ptier{align-items:stretch}
+.pnum{display:grid;place-items:center;border-radius:10px;font-weight:800;font-size:14px;color:#6b7a99;background:#0b1428;border:1px solid #1f2d48;font-variant-numeric:tabular-nums}
+.ptier.reached .pnum{color:#2b1500;background:linear-gradient(180deg,#ffe9a0,#ffbf3a);border-color:#ffcf6a}
+.ptier.next .pnum{color:#ffe39a;border-color:#ffcf6a}
+#modal .prew{min-height:54px;padding:6px 8px;border-radius:12px;display:flex;align-items:center;gap:8px;text-align:left;font-size:13px;font-weight:700;
+  color:#e8eefc;background:#0b1428;border:1px solid #1f2d48;box-shadow:none}
+#modal .prew.prem{border:1px solid transparent;background:linear-gradient(#17112a,#17112a) padding-box,linear-gradient(90deg,#ffd76a66,#ff9f3c55) border-box}
+#modal .prew.ready{border:1.5px solid #ffcf6a;box-shadow:0 0 14px #ffbf3a44;background:#1d1630}
+#modal .prew.got{opacity:.5}
+#modal .prew.skin{flex-wrap:wrap;row-gap:3px;align-content:center}
+.prew em{margin-left:auto;font-style:normal;font-weight:800;font-size:12px;color:#ffd35c;white-space:nowrap}
+.prew.got em{color:#1cf3a9}
+.prew .pcoin{font-weight:800;color:#eef3ff;white-space:nowrap}
+.prew .skinimg{flex:none;border-radius:4px;border:1px solid #2a3c5c}
+.prew .pskin{order:3;flex-basis:100%;font-size:11px;font-weight:600;line-height:1.2;color:#cfd8ef}
+/* shop: header with the balance, tabs, groups, season tag, buy dialog */
+.shophead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.shophead h2::after{display:none!important}
+.coinbal{flex:none;padding:6px 13px;border-radius:999px;border:1.5px solid #ffcf6a88;background:#2a1d0a73;color:#ffe39a;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
+.shoptabs{margin:2px 0 6px}
+#modal .shoptabs button{min-height:44px;font-size:14px;padding:4px 6px}
+.skgroup{display:block;margin:18px 0 8px}
+.skfoot{margin-top:16px}
+.shopdone,#passDone{margin-top:14px}
+#modal button.skin{position:relative}
+#modal button.skin.season .skintext small{color:#ffcf6a}
+.skinbig{display:block;width:100%;height:auto;aspect-ratio:300/120;border-radius:12px;border:1px solid #2a3c5c}
+/* the shop previews of skins with an animated touch shimmer (glint) or twinkle, like their blocks in play */
+.skwrap{position:relative;flex:none;display:block;border-radius:8px;overflow:hidden;line-height:0}
+.skwrap.big{max-width:300px;margin:8px auto 4px;border-radius:12px;box-shadow:0 0 18px #00000066}
+.skwrap.fxg::after{content:'';position:absolute;top:0;bottom:0;left:0;width:42%;pointer-events:none;background:linear-gradient(100deg,transparent,#fff6d266 50%,transparent);
+  transform:translateX(-130%) skewX(-18deg);animation:skglint 4.6s ease-in-out infinite}
+@keyframes skglint{0%,66%{transform:translateX(-130%) skewX(-18deg)}100%{transform:translateX(340%) skewX(-18deg)}}
+.skwrap.fxt::after{content:'';position:absolute;inset:0;pointer-events:none;animation:sktw 2.6s ease-in-out infinite;
+  background:radial-gradient(circle at 17% 30%,#fff 0 1px,#fff0 2.4px),radial-gradient(circle at 63% 21%,#fff 0 1.3px,#fff0 2.8px),radial-gradient(circle at 82% 66%,#fff 0 1px,#fff0 2.4px),radial-gradient(circle at 38% 74%,#fff 0 1.2px,#fff0 2.6px)}
+@keyframes sktw{0%,100%{opacity:.1}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.skwrap::after{display:none}}
+/* the animated touch in play: a transparent layer exactly over the main board (59-skins.js skinFxFrame) */
+#skinfx{position:absolute;left:0;top:0;width:280px;height:560px;border:1px solid transparent;border-radius:6px;pointer-events:none;z-index:3}
+.iapnote{text-align:center;margin:24px 8px}
+/* profile: level panel */
+.lvrow{display:flex;align-items:center;gap:12px;margin:14px 0 10px;padding:10px 12px;border-radius:16px;background:#0b1428;border:1px solid #1f2d48}
+.lvrow>div{flex:1;min-width:0}
+.lvrow b{font-size:16px}
+.lvrow .prog{margin:6px 0 4px}

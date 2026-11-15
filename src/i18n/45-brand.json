@@ -6,7 +6,7 @@
     "deleteAccount": "Delete my account",
     "confirmDeleteCloud": "Delete account and data",
     "coinsHow": "How to earn coins",
-    "coinsInfo": "Practice and ranked matches pay coins: 60 for a win, 20 for a loss (150 or 40 in a first-to-3 match). Come back every day for the daily reward. Styles never change gameplay.",
+    "coinsInfo": "Practice and ranked matches pay coins: 30 for a win, 10 for a loss (75 or 20 in a first-to-3 match). Daily missions, new levels, the season pass and the daily reward pay more. Skins never change gameplay.",
     "brandName": "Khan Blocks"
   },
   "mn": {
@@ -16,7 +16,7 @@
     "deleteAccount": "Бүртгэлээ устгах",
     "confirmDeleteCloud": "Бүртгэл, мэдээллээ устгах",
     "coinsHow": "Зоос хэрхэн олох",
-    "coinsInfo": "Бэлтгэл болон rank тоглолтоос зоос авна: хожвол 60, хожигдвол 20 (3 хожсон нь ялах тоглолтод 150, 40). Өдөр бүр орж өдрийн шагналаа аваарай. Загвар тоглолтод нөлөөлөхгүй.",
+    "coinsInfo": "Бэлтгэл болон rank тоглолтоос зоос авна: хожвол 30, хожигдвол 10 (3 хожсон нь ялах тоглолтод 75, 20). Өдрийн даалгавар, шинэ түвшин, улирлын эрх, өдрийн шагнал нэмэлт зоос өгнө. Загвар тоглолтод нөлөөлөхгүй.",
     "brandName": "Khan Blocks"
   }
 }

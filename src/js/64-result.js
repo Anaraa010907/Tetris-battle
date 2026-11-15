@@ -24,7 +24,7 @@ function resultFx(){
   box.innerHTML='<div class="rptitle">'+myBadge(26)+'<span style="color:'+col+'">'+titleName(after)+' · '+rankLetter()+'</span><span class="muted">'+after+' RP</span></div><div class="rpbar"></div>';
   fxProgress(box.querySelector('.rpbar'),{from:first||up?base:down?max:before,to:nx?after:max,min:base,max,color:col,delay:350,
     left:(d>=0?'+':'')+d+' RP',right:nx?t('rpToNext').replace('{n}',nx[1]-after).replace('{t}',t(nx[0])):t('topRank')});
-  if(first||up)setTimeout(()=>{if(state==='result'&&series===s)fxCelebrate({kicker:t(first?'placedNow':'promoted'),title:titleName(after),
+  if(first||up)setTimeout(()=>{if(state==='result'&&series===s)celebrateNext({kicker:t(first?'placedNow':'promoted'),title:titleName(after),
     badge:myBadge(132),color:col,sub:rankLetter()+' · '+after+' RP',whileState:'result'})},1100);
 }
 new MutationObserver(resultFx).observe($('resultStats'),{childList:true});
