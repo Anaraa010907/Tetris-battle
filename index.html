@@ -2157,6 +2157,17 @@ new MutationObserver(()=>{
   const box=document.createElement('span');box.className='setad';p.after(box);renderStoreSettings(box);
 }).observe($('modal'),{childList:true});
 
+// "Delete profile / my account" (80-ui.js, #yesDelete) clears what this file saved too. What was bought stays with
+// the Google account: owned items come back from Play by themselves (offline build) or from the server on restore.
+document.addEventListener('click',e=>{
+  if(!e.target||!e.target.closest||!e.target.closest('#yesDelete'))return;
+  try{localStorage.removeItem('khan-store')}catch(err){}
+  Object.assign(payState,{first:Date.now(),matches:0,since:0,lastAd:0,lastReward:0,paid:false,local:{},granted:[],
+    server:{owner:'',skus:[],paid:false},day:'',free:0,dbl:0,doubled:[],claims:[]});
+  payCloudUid='';paySave();payChanged();
+  if(Native.has()&&!Cloud.on())setTimeout(()=>{if(payNative.billing==='ready')restorePurchases(false)},1500);
+},true);
+
 // ---- start: the app tells us when billing is connected; the online account brings the server's view
 let payCloudUid='';
 async function payServerSync(){
