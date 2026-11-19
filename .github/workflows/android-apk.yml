@@ -2,9 +2,16 @@ name: Build Android APK
 
 # Debug APK for testing on your own phone. Run it by hand: Actions -> Build Android APK -> Run workflow.
 # For Google Play use "Build release AAB for Google Play" instead (docs/LAUNCH.md).
+# A debug build always shows Google's test ads. Purchases work for license testers (docs/MONETIZATION.md).
 
 on:
   workflow_dispatch:
+    inputs:
+      consent_test:
+        description: 'Consent test: show the EEA privacy (UMP) form on every start (emulator, or the ADS_TEST_DEVICE variable)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -62,6 +69,9 @@ jobs:
 
       - name: Build debug APK
         working-directory: android
+        env:
+          UMP_DEBUG_EEA: ${{ inputs.consent_test && 'true' || 'false' }}
+          ADS_TEST_DEVICE: ${{ vars.ADS_TEST_DEVICE }}
         run: gradle assembleDebug --no-daemon
 
       - uses: actions/upload-artifact@v6

@@ -2,7 +2,7 @@
 """Browser tests for the built index.html (rules, touch controls, game flows, the offline and cloud paths).
 
     python3 tests/game_test.py                 all groups
-    python3 tests/game_test.py rules flows     only the named groups: rules, touch, flows, cloud, controls, friends, look
+    python3 tests/game_test.py rules flows     only the named groups: rules, touch, flows, cloud, controls, friends, look, store
 
 Environment: CHROME (browser binary, default: Playwright's Chromium), TEST_OUT (screenshot folder).
 Exit code 1 when a check fails or the page throws. Checks read state through the game's own globals
@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGE = os.path.join(ROOT, 'index.html')
 OUT = os.path.join(os.environ.get('TEST_OUT') or tempfile.mkdtemp(prefix='neon-test-'), '')
 os.makedirs(OUT, exist_ok=True)
-GROUPS = [g for g in sys.argv[1:] if not g.startswith('-')] or ['rules', 'touch', 'flows', 'cloud', 'controls', 'friends', 'look']
+GROUPS = [g for g in sys.argv[1:] if not g.startswith('-')] or ['rules', 'touch', 'flows', 'cloud', 'controls', 'friends', 'look', 'store']
 R, ERRS = {}, []
 
 
@@ -858,6 +858,312 @@ async def look(br):
     await pg.evaluate("leaveMatch()"); await wait(pg, "!$('celebrate')", 2000)
     check('the celebration closes when leaving the result', await pg.evaluate("state==='title'&&!$('celebrate')"))
     await ctx.close()
+
+
+# ====================================================================== store (payments and ads, 54-native.js + 55-store.js)
+# A fake of the Android app's KhanNative bridge, installed before the page loads. FAKE (in the page) drives what
+# Google Play and AdMob answer; FAKE.calls records every request. The shop, result screen and settings call
+# sites belong to the progression work, so these checks call the hooks directly with containers they create.
+FAKE_NATIVE = r"""
+window.FAKE={calls:[],billing:'ready',ads:{canRequest:true,privacyRequired:false,rewarded:true,interstitial:true,test:true},
+  prices:{coins_small:'US$0.99',coins_medium:'US$1.99',coins_large:'US$4.99',remove_ads:'US$2.99',pass_s1:'US$3.99'},
+  buy:'ok',rewarded:'earned',purchases:[],seq:0,shown:0,privacy:0,delay:5};
+window.KhanNative={
+  info(){return JSON.stringify({v:1,platform:'android',billing:FAKE.billing,ads:FAKE.ads})},
+  post(json){
+    const m=JSON.parse(json),a=m.args||{};FAKE.calls.push(m);
+    const reply=(ok,data)=>setTimeout(()=>window.__khanNative(JSON.stringify(ok?{id:m.id,ok:true,data}:{id:m.id,ok:false,error:data})),FAKE.delay);
+    const make=st=>{const p={token:'tok-'+a.sku+'-'+(++FAKE.seq)+'-abcdefgh',sku:a.sku,orderId:'GPA.'+FAKE.seq,state:st,acknowledged:false,time:Date.now(),quantity:1};FAKE.purchases.push(p);return p};
+    if(m.op==='products')reply(true,{products:a.skus.filter(s=>FAKE.prices[s]).map(s=>({sku:s,price:FAKE.prices[s],micros:990000,currency:'USD'})),missing:a.skus.filter(s=>!FAKE.prices[s])});
+    else if(m.op==='buy'){FAKE.account=a.account;if(FAKE.buy==='ok')reply(true,{status:'ok',purchases:[make('purchased')]});else if(FAKE.buy==='pending')reply(true,{status:'pending',purchases:[make('pending')]});else reply(true,{status:FAKE.buy})}
+    else if(m.op==='purchases')reply(true,{purchases:JSON.parse(JSON.stringify(FAKE.purchases))});
+    else if(m.op==='finish'){const i=FAKE.purchases.findIndex(p=>p.token===a.token);if(i<0)reply(false,'item_not_owned');else{if(a.consume)FAKE.purchases.splice(i,1);else FAKE.purchases[i].acknowledged=true;reply(true,{done:true})}}
+    else if(m.op==='rewarded')reply(true,{status:FAKE.rewarded,amount:1,type:'reward'});
+    else if(m.op==='interstitial'){if(FAKE.ads.interstitial)FAKE.shown++;reply(true,{status:FAKE.ads.interstitial?'shown':'unavailable'})}
+    else if(m.op==='privacy'){FAKE.privacy++;reply(true,{status:'closed'})}
+    else reply(false,'bad_op');
+    return 'ok';
+  }};
+"""
+SHOP_IAP = "(()=>{shop();const d=document.createElement('div');d.id='shopIap';$('adInfo').before(d);renderIapSection(d);$('shopDone').scrollIntoView({block:'end'})})()"
+RESULT_AD = """(info=>{let d=$('resultAd');if(!d){d=document.createElement('div');d.id='resultAd';document.querySelector('#result .stack').before(d)}
+  renderResultAd(d,info);return {hidden:d.hidden,btn:!!d.querySelector('button'),text:d.textContent}})"""
+
+
+async def store_page(br, fake=True, store=None, route=None, page=None):
+    ctx, pg = await new_page(br, store=store if store is not None else {'name': 'Тэмүүжин', 'coins': 100}, route=route)
+    if fake:
+        await pg.add_init_script(FAKE_NATIVE)
+    await pg.goto('file://' + (page or PAGE))
+    await pg.wait_for_timeout(150)
+    return ctx, pg
+
+
+def edge_function_tests():
+    # the Edge Functions' logic (supabase/functions/_shared/play.mjs) runs on Node 22 as well as Deno: test it here when
+    # a Node 22+ is around (NODE=/path, node on PATH or /opt/node22/bin/node); without one, say it was skipped
+    import shutil, subprocess
+    node = os.environ.get('NODE') or shutil.which('node') or ('/opt/node22/bin/node' if os.path.exists('/opt/node22/bin/node') else '')
+    ver = subprocess.run([node, '-p', 'process.versions.node.split(".")[0]'], capture_output=True, text=True).stdout.strip() if node else ''
+    if not ver.isdigit() or int(ver) < 22:
+        print('  skip Edge Function tests (needs Node 22+, set NODE=/path/to/node)', flush=True)
+        return
+    r = subprocess.run([node, os.path.join(ROOT, 'supabase', 'functions', 'tests', 'play_test.mjs')], capture_output=True, text=True)
+    last = (r.stdout.strip().splitlines() or [''])[-1]
+    check('Edge Functions (verify-purchase, voided-purchases) on Node ' + ver + ': ' + last.replace('RESULT: ', ''), r.returncode == 0,
+          [l for l in r.stdout.splitlines() if 'FAIL' in l][:5] or r.stderr[-400:])
+
+
+async def store(br):
+    print('store', flush=True)
+    edge_function_tests()
+    # ---- a plain browser: no bridge, no store, a note instead of the shop section, no ads at all
+    ctx, pg = await store_page(br, fake=False)
+    r = await pg.evaluate("""(()=>{const d=document.createElement('div');document.body.append(d);renderIapSection(d);
+      const e=document.createElement('div');document.body.append(e);renderResultAd(e,{mode:'practice',win:true,coins:60,ref:'r1'});
+      return {store:typeof window.Store,note:d.textContent.includes(t('iapBrowser')),buttons:d.querySelectorAll('button').length,ad:e.hidden&&!e.innerHTML,
+              end:onMatchEnd({mode:'practice',win:true,coins:60,ref:'r1'}),native:Native.has()}})()""")
+    check('browser: no Store, a note in the shop, no ad buttons, no interstitials', r == {'store': 'undefined', 'note': True, 'buttons': 0, 'ad': True, 'end': False, 'native': False}, r)
+    await pg.evaluate(SHOP_IAP); await pg.wait_for_timeout(100)
+    await pg.screenshot(path=OUT + 'store_browser_note.png')
+    await ctx.close()
+
+    # ---- the app, offline build (no Supabase): Play's answer is the proof, grants are local
+    ctx, pg = await store_page(br)
+    await wait(pg, "!!window.Store&&Store.ready()&&!!Store.price('coins_small')", 4000)
+    r = await pg.evaluate("({ready:Store.ready(),price:Store.price('remove_ads'),has:Store.has('remove_ads'),removed:Store.adsRemoved()})")
+    check('app: Store is ready with Play prices', r == {'ready': True, 'price': 'US$2.99', 'has': False, 'removed': False}, r)
+    await pg.evaluate(SHOP_IAP)
+    await wait(pg, "$('shopIap').textContent.includes('US$4.99')", 3000)
+    r = await pg.evaluate("""(()=>{const b=[...document.querySelectorAll('#shopIap .iappack')];return {packs:b.map(x=>x.textContent),
+      noads:document.querySelector('#shopIap [data-sku=remove_ads]').textContent.includes('US$2.99'),free:!!$('iapFree')&&!$('iapFree').disabled,restore:!!$('iapRestore')}})()""")
+    check('shop section: coin packs with Play prices, Remove ads, free coins, restore',
+          r['packs'] == ['◈ 500US$0.99', '◈ 1,200US$1.99', '◈ 3,500US$4.99'] and r['noads'] and r['free'] and r['restore'], r)
+    await pg.screenshot(path=OUT + 'store_shop_mn.png')
+    await pg.evaluate("profile.lang='en';translate();" + SHOP_IAP); await pg.wait_for_timeout(100)
+    await pg.screenshot(path=OUT + 'store_shop_en.png')
+    await pg.evaluate("profile.lang='mn';translate();" + SHOP_IAP); await pg.wait_for_timeout(100)
+    # buy: ok (coins added once, then consumed), cancel, pending (added when Play confirms later)
+    await pg.click('#shopIap [data-sku=coins_small]')
+    await wait(pg, "profile.coins===600&&FAKE.purchases.length===0&&!!$('shopIap').querySelector('.iapmsg').textContent", 3000)
+    r = await pg.evaluate("[profile.coins,JSON.parse(localStorage.getItem('neon-duel')).coins,FAKE.calls.filter(c=>c.op==='finish').map(c=>c.args.consume),$('shopIap').querySelector('.iapmsg').textContent]")
+    check('buy a coin pack: +500, saved, consumed after the grant', r[:3] == [600, 600, [True]] and r[3] == (await pg.evaluate("t('iapThanksCoins').replace('{n}',500)")), r)
+    await pg.evaluate("FAKE.buy='cancel'")
+    r = await pg.evaluate("Store.buy('coins_medium').then(x=>[x,profile.coins])")
+    check('buy cancelled: nothing changes', r == [{'ok': False, 'reason': 'cancel'}, 600], r)
+    await pg.evaluate("FAKE.buy='pending'")
+    r = await pg.evaluate("Store.buy('coins_medium').then(x=>[x,profile.coins,FAKE.purchases.length])")
+    check('pending payment: nothing granted yet, the purchase waits', r == [{'ok': False, 'reason': 'pending'}, 600, 1], r)
+    await pg.evaluate("FAKE.purchases[0].state='purchased';__khanNative(JSON.stringify({event:'purchases',data:{purchases:[FAKE.purchases[0]]}}))")
+    await wait(pg, "profile.coins===1800&&FAKE.purchases.length===0", 3000)
+    check('the pending payment goes through later: +1200 and consumed', True)
+    await pg.evaluate("FAKE.buy='ok'")
+    r = await pg.evaluate("Store.buy('remove_ads').then(x=>[x,Store.has('remove_ads'),Store.adsRemoved(),FAKE.purchases.map(p=>[p.sku,p.acknowledged])])")
+    check('buy Remove ads: owned, acknowledged', r == [{'ok': True}, True, True, [['remove_ads', True]]], r)
+    await pg.evaluate("window.__changes=0;Store.onChange(()=>__changes++);0")   # (an expression that ends in a function would be called)
+    r = await pg.evaluate("Store.buy('remove_ads').then(x=>x)")
+    check('buying an owned item again is a no-op', r == {'ok': True, 'reason': 'owned'}, r)
+    await pg.evaluate(SHOP_IAP); await pg.wait_for_timeout(50)
+    check('the shop shows Remove ads as owned', await pg.evaluate("!!document.querySelector('#shopIap .iapowned')&&!document.querySelector('#shopIap [data-sku=remove_ads]')"))
+    # restore: lost local state comes back from Play; a refund (gone from Play's list) takes it away
+    await pg.evaluate("payState.local={};paySave()")
+    check('without local state the item is not owned', await pg.evaluate("Store.has('remove_ads')") is False)
+    await pg.click('#iapRestore')
+    await wait(pg, "Store.has('remove_ads')&&document.querySelector('#shopIap .iapmsg').textContent===t('iapRestored')", 3000)
+    check('restore purchases brings it back (and tells the listeners)', await pg.evaluate("__changes>0"))
+    await pg.evaluate("closeModal();payState.matches=9;payState.free=3;paySave()")
+    await pg.click('#settings'); await pg.click('#delete'); await pg.click('#yesDelete')
+    r = await pg.evaluate("[payState.matches,payState.free,Object.keys(payState.local).length,JSON.parse(localStorage.getItem('khan-store')).matches]")
+    check('delete profile also clears the store state', r == [0, 0, 0, 0], r)
+    await wait(pg, "Store.has('remove_ads')", 4000)
+    check('... and what was bought comes back from Google Play by itself', True)
+    await pg.evaluate("FAKE.purchases=[]")
+    r = await pg.evaluate("Store.restore().then(()=>Store.has('remove_ads'))")
+    check('offline build: a refunded item is removed on restore', r is False, r)
+    await pg.evaluate("profile.coins=2000;save()")
+    # Play has no products for this country: the section says so instead of offering them
+    await pg.evaluate("for(const k in payPrices)delete payPrices[k];['coins_small','coins_medium','coins_large','remove_ads'].forEach(s=>payMissing.add(s));" + SHOP_IAP)
+    r = await pg.evaluate("[$('shopIap').textContent.includes(t('iapNoProducts')),[...document.querySelectorAll('#shopIap [data-sku]')].every(b=>b.disabled)]")
+    check('no products for this Play country: told so, buttons off', r == [True, True], r)
+    await pg.evaluate("payMissing.clear();loadProducts(PAY_SKUS)")
+    # rewarded: free coins, 5 a day; an ad closed early gives nothing
+    await pg.evaluate(SHOP_IAP); await wait(pg, "!!$('iapFree')&&!$('iapFree').disabled", 2000)
+    c0 = await pg.evaluate("profile.coins")
+    for i in range(5):
+        await wait(pg, "!!$('iapFree')&&!$('iapFree').disabled", 2000)
+        await pg.click('#iapFree')
+        await wait(pg, "profile.coins===%d" % (c0 + 30 * (i + 1)), 2000)
+    r = await pg.evaluate("[profile.coins-%d,$('iapFree').disabled,adsLeft('free_coins'),FAKE.calls.filter(c=>c.op==='rewarded').map(c=>c.args.placement).length]" % c0)
+    check('free coins: +30 per ad, 5 a day, then the button is off', r == [150, True, 0, 5], r)
+    r = await pg.evaluate("watchRewarded('free_coins','x-1').then(x=>x.reason)")
+    check('a sixth free-coins ad is refused before any ad shows', r == 'daily_limit' and await pg.evaluate("FAKE.calls.filter(c=>c.op==='rewarded').length") == 5, r)
+    await pg.evaluate("payState.day='2000-01-01';paySave();FAKE.rewarded='closed'")
+    r = await pg.evaluate("(async()=>{const c=profile.coins,x=await watchRewarded('free_coins','x-2');return [x.reason,profile.coins-c,adsLeft('free_coins')]})()")
+    check('a new day resets the cap; an ad closed early gives nothing', r == ['no_reward', 0, 5], r)
+    await pg.evaluate("FAKE.rewarded='earned';closeModal()")
+    # double coins on the result screen: once per match ref, practice and bot only
+    await pg.evaluate("profile.fmt='single';startPractice()"); await pg.evaluate(FREEZE)
+    await pg.evaluate("finishRound(boards[1])"); await wait(pg, "state==='result'", 4000)
+    info = {'mode': 'practice', 'win': True, 'coins': 60, 'ref': 'match-1'}
+    r = await pg.evaluate(RESULT_AD, info)
+    check('result: a "double your coins" button', r['btn'] and not r['hidden'] and '+60' in r['text'], r)
+    await pg.screenshot(path=OUT + 'store_result_mn.png')
+    c0 = await pg.evaluate("profile.coins")
+    await pg.click('#resultAd button')
+    await wait(pg, "profile.coins===%d" % (c0 + 60), 2000)
+    r = await pg.evaluate(RESULT_AD, info)
+    check('double coins: +60 once, then the button is gone for that match', not r['btn'] and not r['hidden'] and '+60' in r['text'], r)
+    r = await pg.evaluate("grantReward('double_coins','match-2',999).then(x=>x.granted)")
+    check('double coins never more than 150', r == 150, r)
+    r = await pg.evaluate("""[%s({mode:'online',win:true,coins:60,ref:'o1'}),%s({mode:'friend',win:true,coins:0,ref:'f1'}),%s({mode:'bot',win:false,coins:0,ref:'b1'})].map(x=>x.hidden&&!x.btn)""" % (RESULT_AD, RESULT_AD, RESULT_AD))
+    check('no result ad in online or friend matches, or without coins', r == [True, True, True], r)
+    r = await pg.evaluate(RESULT_AD, {'mode': 'bot', 'win': True, 'coins': 150, 'ref': 'match-3'})
+    await pg.evaluate("profile.lang='en';translate()")
+    await pg.evaluate(RESULT_AD, {'mode': 'bot', 'win': True, 'coins': 150, 'ref': 'match-3'})
+    await pg.screenshot(path=OUT + 'store_result_en.png')
+    await pg.evaluate("profile.lang='mn';translate();leaveMatch()")
+    await ctx.close()
+
+    # ---- interstitial pacing
+    ctx, pg = await store_page(br, store={'name': 'Тоглогч', 'coins': 0})
+    await wait(pg, "!!window.Store&&Store.ready()", 3000)
+    await pg.evaluate("AD_RULES.delayMs=20;payState.first=Date.now()-2*864e5;state='result'")
+    END = "(m=>onMatchEnd({mode:m,win:true,coins:60,ref:'p'+Math.random()}))"
+    r = await pg.evaluate("[%s('online'),%s('friend'),payState.matches]" % (END, END))
+    check('interstitials: never after online or friend matches (not even counted)', r == [False, False, 0], r)
+    r = await pg.evaluate("[1,2,3,4,5].map(()=>%s('practice'))" % END)
+    check('interstitials: none in the first 5 matches', r == [False] * 5, r)
+    r = await pg.evaluate("%s('bot')" % END)
+    await wait(pg, "FAKE.shown===1", 2000)
+    check('the 6th match shows one, at the result screen', r is True and await pg.evaluate("[payState.since,Date.now()-payState.lastAd<5000]") == [0, True])
+    r = await pg.evaluate("[%s('practice'),%s('practice'),%s('practice')]" % (END, END, END))
+    check('then at most one per 3 matches, and not within 3 minutes', r == [False, False, False], r)
+    await pg.evaluate("payState.lastAd-=181e3")
+    r = await pg.evaluate("%s('practice')" % END)
+    await wait(pg, "FAKE.shown===2", 2000)
+    check('3 matches and 3 minutes later: the next one', r is True)
+    await pg.evaluate("payState.lastAd-=181e3;payState.since=3")
+    await pg.evaluate("watchRewarded('free_coins','r-1')"); await wait(pg, "!adBusy", 2000)
+    r = await pg.evaluate("%s('practice')" % END)
+    check('never right after a rewarded ad', r is False and await pg.evaluate("FAKE.shown") == 2, r)
+    await pg.evaluate("payState.lastReward-=181e3;payState.first=Date.now()")
+    check('never on the first day', await pg.evaluate("%s('practice')" % END) is False)
+    await pg.evaluate("payState.first-=2*864e5;state='title'")
+    r = await pg.evaluate("%s('practice')" % END)
+    await pg.wait_for_timeout(200)
+    check('not shown if the player already left the result screen', r is True and await pg.evaluate("FAKE.shown") == 2, r)
+    await pg.evaluate("state='result';payState.since=3;payState.lastAd=0")
+    await pg.evaluate("Store.buy('remove_ads')"); await wait(pg, "Store.adsRemoved()", 2000)
+    check('Remove ads: no interstitials', await pg.evaluate("[%s('practice'),interstitialDue()]" % END) == [False, False])
+    await pg.evaluate("payState.local={};payState.paid=false;FAKE.purchases=[];payState.since=3")
+    check('(without it they would be due again)', await pg.evaluate("interstitialDue()") is True)
+    await pg.evaluate("Store.buy('coins_small')"); await wait(pg, "payState.paid", 2000)
+    check('any purchase: no interstitials', await pg.evaluate("[%s('practice'),interstitialDue()]" % END) == [False, False])
+    # settings: the privacy and ad choices entry only when consent rules need it
+    await pg.click('#settings')
+    check('settings: no ad-privacy entry when not required', await pg.evaluate("!$('adPrivacy')"))
+    await pg.evaluate("closeModal();FAKE.ads.privacyRequired=true;__khanNative(JSON.stringify({event:'state',data:{ads:FAKE.ads}}))")
+    await pg.click('#settings'); await pg.wait_for_timeout(50)
+    r = await pg.evaluate("[!!$('adPrivacy'),$('privacy').nextElementSibling.contains($('adPrivacy')),$('adPrivacy').textContent===t('adPrivacy')]")
+    check('settings: "Privacy and ad choices" right after Privacy when required', r == [True, True, True], r)
+    await pg.screenshot(path=OUT + 'store_settings_privacy_mn.png')
+    await pg.click('#adPrivacy'); await wait(pg, "FAKE.privacy===1", 2000)
+    check('it opens the consent form in the app', True)
+    await pg.evaluate("closeModal();profile.lang='en';translate()"); await pg.click('#settings'); await pg.wait_for_timeout(50)
+    await pg.screenshot(path=OUT + 'store_settings_privacy_en.png')
+    await pg.evaluate("closeModal();profile.lang='mn';translate()")
+    await ctx.close()
+
+    # ---- the app with Supabase: the server grants, its answer replaces the local state
+    src = open(PAGE, encoding='utf-8').read()
+    test_page = OUT + 'store_cloud_test.html'
+    open(test_page, 'w', encoding='utf-8').write(src.replace('{"supabaseUrl":"","supabaseAnonKey":""}',
+                                                            '{"supabaseUrl":"https://test.supabase.co","supabaseAnonKey":"anon-key"}'))
+    cors = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*'}
+    srv = {'down': False, 'calls': [], 'skus': [], 'tokens': {}, 'reject': None, 'finished': True, 'ads': {'free_coins': 0, 'double_coins': 0}}
+    me = {'id': 'u1', 'username': 'Тэмүүжин', 'avatar': '👑', 'rating': 1000, 'wins': 0, 'losses': 0, 'coins': 40, 'theme': 0, 'owned': [0],
+          'streak': 0, 'last_claim': None, 'imported': True}
+    packs = {'coins_small': 500, 'coins_medium': 1200, 'coins_large': 3500}
+
+    def state():
+        return {'skus': sorted(srv['skus']), 'paid': bool(srv['tokens']), 'day': '2026-11-16', 'ads': dict(srv['ads']), 'limits': {'free_coins': 5, 'double_coins': 10}}
+
+    async def handle(route):
+        req = route.request
+        if req.method == 'OPTIONS':
+            return await route.fulfill(status=204, headers=cors)
+        if srv['down']:
+            return await route.abort()
+        path = req.url.split('supabase.co', 1)[1].split('?')[0]
+        body = json.loads(req.post_data) if req.post_data else {}
+        srv['calls'].append((path, body, req.headers.get('authorization', '')))
+        ok = lambda d, st=200: route.fulfill(status=st, headers={**cors, 'Content-Type': 'application/json'}, body=json.dumps(d))
+        if path.startswith('/auth/v1/signup'):
+            return await ok({'access_token': 'tok-u1', 'refresh_token': 'r', 'expires_in': 3600, 'user': {'id': 'u1', 'is_anonymous': True}})
+        if path == '/rest/v1/rpc/get_my_profile':
+            return await ok(me)
+        if path == '/rest/v1/rpc/my_entitlements':
+            return await ok(state())
+        if path == '/rest/v1/rpc/claim_ad_reward':
+            amt = 30 if body['p_placement'] == 'free_coins' else min(body['p_coins'], 150)
+            me['coins'] += amt; srv['ads'][body['p_placement']] += 1
+            return await ok({'status': 'granted', 'granted': amt, 'profile': me, **state()})
+        if path == '/functions/v1/verify-purchase':
+            if srv['reject']:
+                return await ok({'ok': False, 'error': srv['reject']}, 409)
+            tok, sku = body['token'], body['sku']
+            status = 'already' if tok in srv['tokens'] else 'granted'
+            if status == 'granted':
+                srv['tokens'][tok] = sku
+                if sku in packs: me['coins'] += packs[sku]
+                else: srv['skus'].append(sku)
+            return await ok({'ok': True, 'status': status, 'sku': sku, 'coins': packs.get(sku, 0) if status == 'granted' else 0,
+                             'finished': srv['finished'], 'profile': me, **state()})
+        return await ok({'message': 'unknown ' + path}, 404)
+
+    ctx, pg = await store_page(br, store={'name': 'Тэмүүжин', 'coins': 40, 'cloudId': 'u1'}, route=handle, page=test_page)
+    await wait(pg, "Cloud.state==='online'&&payCloudUid==='u1'", 6000)
+    await wait(pg, "payState.server.owner==='u1'", 3000)
+    check('online: entitlements come from the server for this account', any(c[0].endswith('my_entitlements') for c in srv['calls']))
+    await pg.evaluate("profile.coins=99999;save()")                 # a local number the server does not agree with
+    r = await pg.evaluate("Store.buy('coins_small').then(x=>[x,profile.coins,FAKE.account])")
+    v = [c for c in srv['calls'] if c[0] == '/functions/v1/verify-purchase']
+    check('online purchase: verified by the server with the Play token, its coins replace the local ones',
+          r == [{'ok': True}, 540, 'u1'] and v and v[-1][1]['sku'] == 'coins_small' and v[-1][1]['token'].startswith('tok-coins_small') and v[-1][2] == 'Bearer tok-u1', [r, v[-1:]])
+    check('the server finished it (no second consume from the app)', await pg.evaluate("FAKE.calls.filter(c=>c.op==='finish').length") == 0)
+    r = await pg.evaluate("Store.buy('remove_ads').then(x=>[x,Store.has('remove_ads'),payState.server.skus,Object.keys(payState.local).length])")
+    check('online Remove ads: owned because the server says so (nothing kept locally)', r == [{'ok': True}, True, ['remove_ads'], 0], r)
+    srv['skus'] = []; srv['finished'] = False      # from here the app finishes purchases itself (the fake server cannot)
+    await pg.evaluate("payServerSync()"); await wait(pg, "!Store.has('remove_ads')", 3000)
+    check('a refund on the server removes it from the phone too', True)
+    srv['reject'] = 'token_used'
+    r = await pg.evaluate("Store.buy('coins_medium').then(x=>[x,profile.coins,FAKE.purchases.filter(p=>p.sku==='coins_medium').length])")
+    check('server refuses the token: nothing granted, the purchase is not consumed', r == [{'ok': False, 'reason': 'token_used'}, 540, 1], r)
+    srv['reject'] = None
+    srv['down'] = True
+    r = await pg.evaluate("FAKE.buy='ok';Store.buy('coins_large').then(x=>[x,profile.coins])")
+    check('server unreachable: not granted yet, the purchase waits in Play', r == [{'ok': False, 'reason': 'offline'}, 540], r)
+    srv['down'] = False
+    await pg.evaluate("restorePurchases(false)")
+    await wait(pg, "profile.coins===540+1200+3500", 4000)
+    await wait(pg, "FAKE.purchases.length===1", 3000)
+    r = await pg.evaluate("[FAKE.purchases.map(p=>p.sku),profile.coins]")
+    check('back online: waiting purchases are verified, granted once and consumed', r == [['remove_ads'], 5240], r)
+    await pg.evaluate("payState.lastReward=0")
+    r = await pg.evaluate("watchRewarded('free_coins','free-x1').then(x=>[x,profile.coins])")
+    claims = [c[1] for c in srv['calls'] if c[0].endswith('claim_ad_reward')]
+    check('online rewarded ad: the server grants it', r == [{'ok': True, 'granted': 30}, 5270] and claims[-1] == {'p_placement': 'free_coins', 'p_ref': 'free-x1', 'p_coins': None}, [r, claims[-1:]])
+    srv['down'] = True
+    await pg.evaluate("Cloud.state='offline'")
+    r = await pg.evaluate("grantReward('double_coins','m-9',60).then(x=>[x.queued,profile.coins,payState.claims.length])")
+    check('rewarded ad while offline: shown at once and queued for the server', r == [True, 5330, 1], r)
+    srv['down'] = False
+    await pg.evaluate("Cloud.state='online';flushClaims()")
+    await wait(pg, "payState.claims.length===0", 3000)
+    claims = [c[1] for c in srv['calls'] if c[0].endswith('claim_ad_reward')]
+    check('the queued reward reaches the server', claims[-1] == {'p_placement': 'double_coins', 'p_ref': 'm-9', 'p_coins': 60} and await pg.evaluate("profile.coins") == 5330, claims[-1:])
+    await ctx.close()
+
 
 async def main():
     async with async_playwright() as pw:

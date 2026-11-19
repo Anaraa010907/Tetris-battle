@@ -1,14 +1,17 @@
 package com.anaraa.khanblocks;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowInsets;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
@@ -17,6 +20,9 @@ public class MainActivity extends Activity {
     private static final int BACKGROUND = Color.rgb(7, 12, 27);
     private WebView webView;
     private OnBackInvokedCallback backCallback;
+    private NativeBridge bridge;
+    private AdsManager ads;
+    private BillingManager billing;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,7 +37,34 @@ public class MainActivity extends Activity {
         // file access, so keep the rest of the phone's files out of the WebView's reach.
         settings.setAllowFileAccess(false);
         webView.setWebChromeClient(new WebChromeClient());
-        webView.loadUrl("file:///android_asset/index.html");
+
+        // Purchases and ads (docs/MONETIZATION.md): the page talks to Google Play Billing and AdMob through the
+        // KhanNative bridge. Only the bundled page may use it, and the WebView never leaves that page.
+        bridge = new NativeBridge(webView);
+        ads = new AdsManager(this, bridge);
+        billing = new BillingManager(this, bridge);
+        bridge.attach(ads, billing);
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                // a tapped https link opens in the browser; nothing replaces the game page in the WebView
+                if (request.hasGesture() && "https".equals(request.getUrl().getScheme())) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl()));
+                    } catch (RuntimeException ignored) {
+                        // no browser
+                    }
+                }
+                return true;
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                bridge.pageStarted(url);
+            }
+        });
+        webView.addJavascriptInterface(bridge, NativeBridge.NAME);
+        webView.loadUrl(NativeBridge.PAGE);
 
         // From Android 15 the app draws behind the system bars. Keep the game inside them, and above the
         // keyboard while a name or email field is being typed in (adjustResize in the manifest).
@@ -66,6 +99,10 @@ public class MainActivity extends Activity {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                     OnBackInvokedDispatcher.PRIORITY_DEFAULT, backCallback);
         }
+
+        // consent first (UMP), then ads; billing connects in parallel
+        ads.start();
+        billing.start();
     }
 
     // Back closes a dialog, pauses a match or leaves the result screen.
@@ -95,6 +132,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         webView.onResume();
+        billing.onResume();
     }
 
     @Override
@@ -102,6 +140,8 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33 && backCallback != null) {
             getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backCallback);
         }
+        billing.end();
+        webView.removeJavascriptInterface(NativeBridge.NAME);
         webView.destroy();
         super.onDestroy();
     }
