@@ -104,7 +104,7 @@ function shop(tab){
   if(shopTab==='skins')document.querySelectorAll('[data-theme]').forEach(b=>drawSkinPreview(b.querySelector('canvas'),skinById(+b.dataset.theme),true));
   if(shopTab==='pass')renderPass($('shopPass'),()=>shop('pass'));
   if(window.renderIapSection){try{window.renderIapSection($('shopIap'))}catch(e){}}
-  else $('shopIap').innerHTML='<p class="muted iapnote">'+t('iapAppOnly')+'</p>';
+  else $('shopIap').innerHTML='<p class="muted shopnote">'+t('iapAppOnly')+'</p>';
   $('shopDone').onclick=closeModal;
   $('adInfo').onclick=()=>info('coinsHow','coinsInfo');
   document.querySelectorAll('[data-theme]').forEach(b=>b.onclick=()=>{
@@ -129,7 +129,7 @@ function buySkinAsk(k){
   $('skBuy').onclick=()=>buySkin(k);
   $('skBack').onclick=()=>shop();
 }
-$('shop').onclick=shop;
+$('shop').onclick=()=>shop('skins');                    // from home: start on the skins
 $('ranked').onclick=onlineMenu;
 translate();
 if(Cloud.on()){sync();window.addEventListener('online',()=>sync())}

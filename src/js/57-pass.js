@@ -84,7 +84,7 @@ function renderPass(el,again){
   const cell=(n,premium)=>{
     const r=passReward(se,n,premium),got=(premium?p.p:p.f).includes(n),reached=n<=tier,can=reached&&!got&&(!premium||prem);
     const what=r.skin!==undefined?skinImage(r.skin,58,24)+'<span class="pskin">'+t(skinById(r.skin).name)+'</span>':'<span class="pcoin">◈ '+r.coins+'</span>';
-    return '<button class="prew'+(premium?' prem':'')+(got?' got':can?' ready':'')+(r.skin!==undefined?' skin':'')+'" data-tier="'+n+'" data-prem="'+(premium?1:0)+'"'+(can?'':' aria-disabled="true"')+'>'
+    return '<button class="prew'+(premium?' prem':'')+(got?' got':can?' ready':'')+(r.skin!==undefined?' skin':'')+'" data-tier="'+n+'" data-prem="'+(premium?1:0)+'">'
       +what+'<em>'+(got?'✓':can?t('claim'):premium&&!prem?'🔒':'')+'</em></button>';
   };
   for(let n=1;n<=PASS_TIERS;n++)h+='<div class="ptier'+(n<=tier?' reached':'')+(n===tier+1?' next':'')+'"><span class="pnum">'+n+'</span>'+cell(n,false)+cell(n,true)+'</div>';

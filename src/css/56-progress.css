@@ -105,7 +105,7 @@ button.xpnote.pass{color:#dfe8ff;background:linear-gradient(#071437f0,#071437f0)
 @media(prefers-reduced-motion:reduce){.skwrap::after{display:none}}
 /* the animated touch in play: a transparent layer exactly over the main board (59-skins.js skinFxFrame) */
 #skinfx{position:absolute;left:0;top:0;width:280px;height:560px;border:1px solid transparent;border-radius:6px;pointer-events:none;z-index:3}
-.iapnote{text-align:center;margin:24px 8px}
+.shopnote{text-align:center;margin:24px 8px}
 /* profile: level panel */
 .lvrow{display:flex;align-items:center;gap:12px;margin:14px 0 10px;padding:10px 12px;border-radius:16px;background:#0b1428;border:1px solid #1f2d48}
 .lvrow>div{flex:1;min-width:0}

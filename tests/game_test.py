@@ -2,7 +2,7 @@
 """Browser tests for the built index.html (rules, touch controls, game flows, the offline and cloud paths).
 
     python3 tests/game_test.py                 all groups
-    python3 tests/game_test.py rules flows     only the named groups: rules, touch, flows, cloud, controls, friends, look
+    python3 tests/game_test.py rules flows     only the named groups: rules, touch, flows, cloud, controls, friends, look, progress
 
 Environment: CHROME (browser binary, default: Playwright's Chromium), TEST_OUT (screenshot folder).
 Exit code 1 when a check fails or the page throws. Checks read state through the game's own globals
@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGE = os.path.join(ROOT, 'index.html')
 OUT = os.path.join(os.environ.get('TEST_OUT') or tempfile.mkdtemp(prefix='neon-test-'), '')
 os.makedirs(OUT, exist_ok=True)
-GROUPS = [g for g in sys.argv[1:] if not g.startswith('-')] or ['rules', 'touch', 'flows', 'cloud', 'controls', 'friends', 'look']
+GROUPS = [g for g in sys.argv[1:] if not g.startswith('-')] or ['rules', 'touch', 'flows', 'cloud', 'controls', 'friends', 'look', 'progress']
 R, ERRS = {}, []
 
 
@@ -858,6 +858,297 @@ async def look(br):
     await pg.evaluate("leaveMatch()"); await wait(pg, "!$('celebrate')", 2000)
     check('the celebration closes when leaving the result', await pg.evaluate("state==='title'&&!$('celebrate')"))
     await ctx.close()
+
+# ====================================================================== progress (XP, levels, missions, season pass, shop)
+PIN_S1 = "progDay=()=>'2026-11-20';0"            # a day inside season s1, so the pass checks do not depend on today's date
+PRACTICE_WIN = """(()=>{profile.fmt='single';startPractice();window.MABLE_PARAMS.fallSeconds=1000;aiClock=-1e9;
+  const b=boards[0];b.pieces=95;b.time=88.4;b.lines=34;b.tspins=1;b.quads=1;b.attack=20;b.maxCombo=3;finishRound(boards[1])})()"""
+
+
+async def progress(br):
+    print('progress', flush=True)
+    import re
+    mig = open(os.path.join(ROOT, 'supabase/migrations/20261118100000_progression.sql'), encoding='utf-8').read()
+    ctx, pg = await new_page(br, store={'coins': 0, 'xp': 90, 'fmt': 'single'})
+    await pg.goto('file://' + PAGE)
+    await pg.evaluate(PIN_S1)
+    # ---- one table each, shared with the server
+    sql_json = lambda cols: json.loads(re.search(r"jsonb_to_recordset\(\$json\$([^$]*)\$json\$::jsonb\)\s*as x\(" + cols, mig, re.S).group(1))
+    check('seasons: the same table in the game and the migration', await pg.evaluate("SEASONS") == sql_json('id text, start text'))
+    check('missions: the same pool in the game and the migration', await pg.evaluate("MISSIONS") == sql_json('id text, k text'))
+    prices = json.loads(re.search(r"\$json\$(\{.*?\})\$json\$::jsonb\) ->> p_id", mig, re.S).group(1))
+    check('skin prices: the same in the registry and skin_price()', await pg.evaluate("Object.fromEntries(SKINS.filter(k=>!k.season).map(k=>[String(k.id),k.price]))") == prices)
+    r = await pg.evaluate("""({coin:SKINS.filter(k=>k.id>=3&&k.id<20).map(k=>k.price),season:SKINS.filter(k=>k.season).every(k=>k.id>=20&&k.id<40&&!k.price),
+      pass:SEASONS.every(s=>[...s.free,...s.premium].every(id=>skinById(id).id===id&&skinById(id).season===s.id)),n:SKINS.filter(k=>k.id>=3).length,
+      fx:SKINS.filter(k=>k.price>=1200).every(k=>k.fx)})""")
+    check('8-12 coin skins at 300/600/1200/2500, season skins 20-39 only from the pass, the dearer ones animated',
+          8 <= len(r['coin']) <= 12 and set(r['coin']) == {300, 600, 1200, 2500} and r['season'] and r['pass'] and r['fx'], r)
+    r = await pg.evaluate("""(()=>{const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));let min=1e9,pair=null;
+      for(let i=0;i<SKINS.length;i++)for(let j=i+1;j<SKINS.length;j++){let d=0;for(let k=0;k<7;k++){const a=rgb(SKINS[i].palette[k]),b=rgb(SKINS[j].palette[k]);d+=Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2])}
+        if(d/7<min){min=d/7;pair=[SKINS[i].id,SKINS[j].id]}}return [Math.round(min),pair]})()""")
+    check('every skin has its own palette (mean colour distance between any two skins >= 60)', r[0] >= 60, r)
+    # ---- the rules, the same numbers as supabase/tests/local_test.sql
+    r = await pg.evaluate("""[[0,99,100,219,220,1620,1e7].map(x=>levelInfo(x).level),[2,10,20].map(levelCoins),
+      matchXp({mode:'practice',won:true,ft:false,time:88,pieces:95}),matchXp({mode:'practice',won:false,ft:false,time:88,pieces:95}),matchXp({mode:'bot',won:true,ft:false,time:88,pieces:95}),
+      matchXp({mode:'online',won:true,ft:false,time:90,pieces:100}),matchXp({mode:'friend',won:false,ft:false,time:90,pieces:100}),matchXp({mode:'bot',won:true,ft:true,time:240,pieces:300}),
+      matchXp({mode:'online',won:false,ft:true,time:600,pieces:900}),matchXp({mode:'practice',won:true,ft:false,time:8,pieces:6}),matchXp({mode:'online',won:true,ft:false,time:3,pieces:0}),
+      [[10,false],[25,false],[1,true],[15,true],[30,true],[2,false],[2,true]].map(([n,p])=>passReward(SEASONS[0],n,p))]""")
+    check('rules match the server: level curve, level coins, match XP, pass rewards',
+          r[:-1] == [[1, 1, 2, 2, 3, 10, 99], [25, 150, 150], 34, 24, 49, 60, 20, 130, 125, 9, 0]
+          and r[-1] == [{'skin': 20}, {'skin': 21}, {'skin': 22}, {'skin': 23}, {'skin': 24}, {'coins': 25}, {'coins': 50}], r)
+    # ---- a practice win: XP, first win, level up with coins, missions, season, result screen, payment hooks
+    await pg.evaluate("window.onMatchEnd=i=>(window.__ends=window.__ends||[]).push(i);window.renderResultAd=(el,i)=>{el.textContent='AD';(window.__ads=window.__ads||[]).push([el.id,i])};0")
+    await pg.evaluate("profile.missions={day:progDay(),rr:false,list:[{id:'play3',p:0,c:false},{id:'lines80',p:0,c:false},{id:'pps15',p:0,c:false}]};save()")
+    await pg.evaluate(PRACTICE_WIN)
+    await wait(pg, "state==='result'", 5000)
+    r = await pg.evaluate("({g:series.gain,xp:profile.xp,coins:profile.coins,lv:levelInfo(profile.xp).level,ms:profile.missions.list.map(x=>x.p),pass:passOf('s1').xp,saved:JSON.parse(localStorage.getItem('neon-duel')).xp})")
+    check('practice win: 34 XP + 40 first win, level 2 pays 25 coins (+30 match coins)',
+          r['g']['xp'] == 74 and r['g']['first'] == 40 and r['xp'] == 164 and r['lv'] == 2 and r['coins'] == 55 and r['g']['ups'] == [{'level': 2, 'coins': 25}] and r['saved'] == 164, r)
+    check('missions advance (play +1, lines +34, best PPS 1.0) and season XP follows', r['ms'] == [1, 34, 10] and r['pass'] == 74, r)
+    await wait(pg, "!!document.querySelector('#xpProg .fxbar')", 3000)
+    check('result screen: XP bar with the gain', await pg.evaluate("$('xpProg').textContent.includes('+74 XP')&&$('xpProg').textContent.includes(t('xpFirstWin'))"))
+    await wait(pg, "!!$('celebrate')", 5000)
+    check('level up is celebrated', await pg.evaluate("$('celebrate').textContent.includes(t('levelUp'))&&$('celebrate').textContent.includes(t('levelN').replace('{n}',2))"))
+    await pg.screenshot(path=OUT + 'progress_levelup.png')
+    await pg.click('#celebOk')
+    r = await pg.evaluate("({ends:window.__ends,ads:window.__ads,ad:$('resultAd').textContent})")
+    e = r['ends'][0] if r['ends'] else {}
+    check('payments hooks: onMatchEnd and renderResultAd once, with {mode, win, coins, ref} and #resultAd',
+          len(r['ends']) == 1 and len(r['ads']) == 1 and e.get('mode') == 'practice' and e.get('win') is True and e.get('coins') == 30
+          and re.fullmatch(r'm-[a-z0-9]+-[a-z0-9]+', e.get('ref', '')) and r['ads'][0] == ['resultAd', e] and r['ad'] == 'AD', r)
+    await pg.screenshot(path=OUT + 'progress_result.png')
+    await pg.evaluate("leaveMatch()")
+    await pg.evaluate(PRACTICE_WIN)
+    await wait(pg, "state==='result'", 5000)
+    r = await pg.evaluate("[series.gain.first,series.gain.xp,window.__ends.length,window.__ends[1].ref!==window.__ends[0].ref]")
+    check('second win the same day: no bonus, a new ref', r == [0, 34, 2, True], r)
+    await pg.evaluate("leaveMatch();profile.xpToday=2395")
+    await pg.evaluate(PRACTICE_WIN)
+    await wait(pg, "state==='result'", 5000)
+    check('daily XP cap: only what is left of 2400, and the result says so', await pg.evaluate("series.gain.xp===5&&series.gain.capped&&$('xpProg').textContent.includes(t('xpCapped'))"))
+    await pg.evaluate("leaveMatch()")
+    # ---- missions dialog: claim, reroll, a new day
+    await pg.evaluate("profile.xp=230;profile.missions={day:progDay(),rr:false,list:[{id:'play3',p:3,c:false},{id:'lines80',p:10,c:false},{id:'pps15',p:0,c:false}]};save();homeMissions=''")
+    await wait(pg, "$('missions').classList.contains('ready')", 3000)
+    check('home: the missions chip shows 0/3 and glows while a reward waits', await pg.evaluate("!$('missions').hidden&&$('missions').textContent.includes('0/3')"))
+    await pg.click('#missions')
+    check('missions dialog: three missions, one ready to claim', await pg.evaluate("document.querySelectorAll('.mcard').length===3&&!!document.querySelector('[data-claim=\"0\"]')"))
+    await pg.screenshot(path=OUT + 'progress_missions.png')
+    c0, x0 = await pg.evaluate("[profile.coins,profile.xp]")
+    await pg.click('[data-claim="0"]')
+    r = await pg.evaluate("[profile.coins,profile.xp,profile.missions.list[0].c,!!document.querySelector('.mcard.claimed .mdone')]")
+    check('claim: an easy mission pays 20 coins and 40 XP, once', r == [c0 + 20, x0 + 40, True, True], r)
+    await pg.click('[data-reroll="1"]')
+    r = await pg.evaluate("""(()=>{const l=profile.missions.list,k=l.map(x=>missionDef(x.id).k);return [l[1].id!=='lines80',missionDef(l[1].id).t,l[1].p,profile.missions.rr,new Set(k).size,
+      [...document.querySelectorAll('[data-reroll]')].every(b=>b.disabled),$('msNote').textContent===t('rerollUsed')]})()""")
+    check('reroll: a fresh medium mission of another kind, once a day', r == [True, 1, 0, True, 3, True, True], r)
+    await pg.evaluate("closeModal();profile.missions.day='2000-01-01'")
+    r = await pg.evaluate("(()=>{missionsSummary();const l=profile.missions.list;return [profile.missions.day===progDay(),profile.missions.rr,l.map(x=>missionDef(x.id).t),new Set(l.map(x=>missionDef(x.id).k)).size,l.every(x=>!x.p&&!x.c)]})()")
+    check('a new day: three new missions (easy, medium, hard, different kinds), a new reroll', r == [True, False, [0, 1, 2], 3, True], r)
+    check('no friend missions without a server', await pg.evaluate("Array.from({length:60},()=>newMissions('d').list).flat().every(x=>missionDef(x.id).k!=='friend')"))
+    # ---- season pass: free track, premium locked without a Store, unlocked with one
+    await pg.evaluate("passOf('s1').xp=3600;profile.coins=0;save()")
+    await pg.click('#shop'); await pg.click('[data-tab="pass"]')
+    r = await pg.evaluate("[document.querySelectorAll('#shopPass .ptier').length,$('shopPass').textContent.includes(t('premiumAppOnly')),!$('passBuy'),$('shopPass').textContent.includes(t('season_s1'))]")
+    check('pass tab: 30 tiers, premium shown locked with the phone-app note when there is no Store', r == [30, True, True, True], r)
+    await pg.screenshot(path=OUT + 'progress_pass_free.png')
+    await pg.click('.prew[data-tier="1"][data-prem="0"]')
+    check('free tier 1: 25 coins', await pg.evaluate("[profile.coins,passOf('s1').f]") == [25, [1]])
+    await pg.click('.prew[data-tier="10"][data-prem="0"]')
+    await wait(pg, "!!$('celebrate')", 3000)
+    check('free tier 10: the season skin, celebrated', await pg.evaluate("profile.owned.includes(20)&&$('celebrate').textContent.includes(t(skinById(20).name))"))
+    await pg.click('#celebOk')
+    await pg.click('.prew[data-tier="1"][data-prem="1"]')
+    check('premium tier without the pass: explained, nothing given', await pg.evaluate("$('modal').textContent.includes(t('premiumAppOnly'))&&!profile.owned.includes(22)&&!passOf('s1').p.length"))
+    await pg.evaluate("""window.__owned=[];window.Store={ready:()=>true,has:s=>window.__owned.includes(s),price:s=>'4.99 $',adsRemoved:()=>false,
+      onChange:f=>{window.__cb=f},buy:s=>{window.__bought=s;window.__owned.push(s);setTimeout(()=>window.__cb&&window.__cb(),10);return Promise.resolve({ok:true})}};passStoreHooked=false;closeModal()""")
+    await pg.click('#shop'); await pg.click('[data-tab="pass"]')
+    check('with a Store: an unlock button with the price', await pg.evaluate("!!$('passBuy')&&$('passBuy').textContent.includes('4.99 $')"))
+    await pg.click('#passBuy')
+    await wait(pg, "!!document.querySelector('#shopPass .ppremium.on')", 3000)
+    check('buying asks the Store for pass_s1 and the premium track opens', await pg.evaluate("window.__bought==='pass_s1'&&!!document.querySelector('.prew.prem.ready')"))
+    await pg.screenshot(path=OUT + 'progress_pass_premium.png')
+    await pg.click('.prew[data-tier="1"][data-prem="1"]')
+    await wait(pg, "!!$('celebrate')", 3000)
+    await pg.click('#celebOk')
+    check('premium tier 1 with the pass: its skin', await pg.evaluate("profile.owned.includes(22)&&passOf('s1').p.includes(1)"))
+    await pg.evaluate("delete window.Store;closeModal()")
+    # ---- shop: tabs, payments container, season skins, confirmation for bigger prices
+    await pg.evaluate("window.renderIapSection=el=>{el.innerHTML='<b id=\"iapMark\">IAP</b>';window.__iap=el.id};profile.coins=1000;save()")
+    await pg.click('#shop')
+    r = await pg.evaluate("[document.querySelectorAll('[data-tab]').length,window.__iap,!!$('iapMark'),$('shopIap').hidden,document.querySelectorAll('.skwrap.fxg,.skwrap.fxt').length===SKINS.filter(k=>k.fx).length]")
+    check('shop: three tabs, renderIapSection fills #shopIap when the shop opens, animated previews for animated skins', r == [3, 'shopIap', True, True, True], r)
+    await pg.screenshot(path=OUT + 'progress_shop.png')
+    check('season skin label names the season pass', await pg.evaluate("document.querySelector('[data-theme=\"24\"] small').textContent.includes(t('seasonSkinNote').replace('{s}',t('season_s1')))"))
+    await pg.click('[data-theme="24"]')
+    check('a season skin not owned opens the pass tab', await pg.evaluate("shopTab==='pass'&&!$('shopPass').hidden"))
+    await pg.click('[data-tab="iap"]')
+    await pg.screenshot(path=OUT + 'progress_shop_iap.png')
+    await pg.click('[data-tab="skins"]')
+    await pg.click('[data-theme="3"]')
+    check('a 300-coin skin asks first', await pg.evaluate("!!$('skBuy')&&!$('skBuy').disabled&&profile.coins===1000"))
+    await pg.click('#skBuy')
+    check('bought and equipped', await pg.evaluate("[profile.coins,profile.theme,profile.owned.includes(3)]") == [700, 3, True])
+    await pg.click('[data-theme="11"]')
+    check('a 2500-coin skin cannot be bought with 700 coins', await pg.evaluate("$('skBuy').disabled&&$('modal').textContent.includes(t('notEnough'))"))
+    await pg.click('#skBack'); await pg.click('[data-theme="22"]')
+    check('a season skin from the pass is equipped for free', await pg.evaluate("[profile.theme,profile.coins]") == [22, 700])
+    await pg.evaluate("delete window.renderIapSection;closeModal()")
+    await pg.click('#shop'); await pg.click('[data-tab="iap"]')
+    check('without the payments module: a note in the Coins tab', await pg.evaluate("$('shopIap').textContent===t('iapAppOnly')"))
+    await pg.evaluate("closeModal()")
+    # ---- profile card and dialog
+    r = await pg.evaluate("[document.querySelector('#profileName .lvchip').textContent,parseFloat($('xpLine').firstElementChild.style.width)>0]")
+    check('home profile card: level chip and XP line', r == [str(await pg.evaluate("levelInfo(profile.xp).level")), True], r)
+    await pg.click('.pcard')
+    check('profile: level panel with missions and pass buttons', await pg.evaluate("!!document.querySelector('.lvrow .lvbadge')&&!!$('pfMissions')&&!!$('pfPass')"))
+    await pg.evaluate("closeModal()")
+    await ctx.close()
+    # ---- saved profiles are checked against the tables
+    ctx, pg = await new_page(br, store={'owned': [0, 3, 22, 19, 50], 'theme': 19, 'xp': 'x', 'missions': {'day': 'x', 'list': [{'id': 'nope'}]},
+                                        'pass': {'s1': {'xp': 500, 'f': [1, 99], 'p': ['x']}, 'zz': {}}})
+    await pg.goto('file://' + PAGE)
+    r = await pg.evaluate("({owned:profile.owned,theme:profile.theme,xp:profile.xp,pass:profile.pass,ms:profile.missions&&profile.missions.list.length})")
+    check('saved profile: unknown skins, missions and seasons dropped', r == {'owned': [0, 3, 22], 'theme': 0, 'xp': 0, 'pass': {'s1': {'xp': 500, 'f': [1], 'p': []}}, 'ms': 3}, r)
+    # ---- the animated touch: still most of the time, never with reduced motion, on its own layer
+    r = await pg.evaluate("[skinFxKey(skinById(11),500),skinFxKey(skinById(11),3000),skinFxKey(skinById(0),500),skinFxKey(skinById(12),500)]")
+    check('glint sweeps now and then, twinkles keep changing, plain skins never move', r[0].startswith('g') and r[1] == '' and r[2] == '' and r[3].startswith('t'), r)
+    # ---- a 360 x 640 phone: chips side by side, result fits
+    await pg.set_viewport_size({'width': 360, 'height': 640})
+    await pg.evaluate("profile.streak=12;profile.lastClaim='';homeStreak='';homeMissions='';fit()")
+    await pg.wait_for_timeout(700)
+    r = await pg.evaluate("""(()=>{const a=$('streak').getBoundingClientRect(),b=$('missions').getBoundingClientRect(),c=document.querySelector('.pcard').getBoundingClientRect();
+      return {apart:a.right<=b.left,above:a.bottom<=c.top&&b.bottom<=c.top,inside:a.left>=0&&b.right<=innerWidth}})()""")
+    check('360x640: streak and missions chips side by side above the profile card', r == {'apart': True, 'above': True, 'inside': True}, r)
+    await pg.screenshot(path=OUT + 'progress_home_360.png')
+    await pg.evaluate(PRACTICE_WIN)
+    await wait(pg, "state==='result'", 5000)
+    await pg.wait_for_timeout(300)
+    check('360x640: the result with XP still shows both buttons', await pg.evaluate("$('home').getBoundingClientRect().bottom<=innerHeight&&$('xpProg').getBoundingClientRect().top>0"))
+    await pg.screenshot(path=OUT + 'progress_result_360.png')
+    await ctx.close()
+    ctx = await br.new_context(viewport={'width': 393, 'height': 852}, reduced_motion='reduce')
+    pg = await ctx.new_page(); pg.on('pageerror', lambda e: ERRS.append('PAGEERROR ' + str(e)))
+    await pg.goto('file://' + PAGE)
+    check('reduced motion: no animated touch', await pg.evaluate("[0,500,1000,6200].every(n=>skinFxKey(skinById(11),n)===''&&skinFxKey(skinById(12),n)==='')"))
+    await ctx.close()
+
+    # ---- with a (fake) server
+    src = open(PAGE, encoding='utf-8').read()
+    test_page = OUT + 'progress_test.html'
+    open(test_page, 'w', encoding='utf-8').write(src.replace('{"supabaseUrl":"","supabaseAnonKey":""}',
+                                                            '{"supabaseUrl":"https://test.supabase.co","supabaseAnonKey":"anon-key"}'))
+    cors = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*'}
+    today = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)).strftime('%Y-%m-%d')
+    fake = {'down': False, 'old': False, 'fast': False, 'calls': []}
+    me = {'id': 'p1', 'username': 'Сүх', 'avatar': '👑', 'rating': 1000, 'wins': 0, 'losses': 0, 'coins': 40, 'theme': 0, 'owned': [0], 'streak': 0,
+          'last_claim': None, 'imported': False, 'xp': 0, 'level': 1, 'xp_today': 0, 'xp_day': today, 'first_win_day': None, 'progress_imported': False,
+          'missions': {'day': today, 'rr': False, 'list': [{'id': 'win2', 'p': 2, 'c': False}, {'id': 'lines30', 'p': 0, 'c': False}, {'id': 'tspin3', 'p': 0, 'c': False}]},
+          'pass': {'s1': {'xp': 400, 'f': [], 'p': []}}}
+
+    async def handle(route):
+        req = route.request
+        if req.method == 'OPTIONS':
+            return await route.fulfill(status=204, headers=cors)
+        if fake['down']:
+            return await route.abort()
+        path = req.url.split('supabase.co', 1)[1]
+        body = json.loads(req.post_data) if req.post_data else {}
+        # an old server (before the progression migration) has no progression columns at all
+        old_keys = {'xp', 'level', 'xp_today', 'xp_day', 'first_win_day', 'progress_imported', 'missions', 'pass'}
+        send = lambda d, st: route.fulfill(status=st, headers={**cors, 'Content-Type': 'application/json'}, body=json.dumps(d))
+        ok = lambda d, st=200: send({k: v for k, v in d.items() if k not in old_keys} if fake['old'] and d is me else d, st)
+        if path.startswith('/auth/v1/signup'):
+            return await ok({'access_token': 'tok-p1', 'refresh_token': 'r', 'expires_in': 3600, 'user': {'id': 'p1', 'is_anonymous': True}})
+        fn = path.split('/rpc/')[1] if '/rpc/' in path else path
+        fake['calls'].append((fn, body))
+        if fn == 'get_my_profile':
+            return await ok(me)
+        if fn == 'import_progress':
+            if not me['progress_imported'] and me['xp'] == 0:
+                me.update(xp=min(body['p_xp'], 6000), progress_imported=True)
+            return await ok(me)
+        if fn == 'report_progress':
+            if fake['old']:
+                return await ok({'message': 'Could not find the function public.report_progress'}, 404)
+            if fake['fast']:
+                return await ok({'message': 'too_fast'}, 400)
+            me.update(xp=me['xp'] + 50, xp_today=me['xp_today'] + 50)
+            return await ok(me)
+        if fn == 'claim_mission':
+            me['missions']['list'][body['p_slot']]['c'] = True; me['coins'] += 30
+            return await ok(me)
+        if fn == 'reroll_mission':
+            me['missions']['list'][body['p_slot']] = {'id': 'pieces150', 'p': 0, 'c': False}; me['missions']['rr'] = True
+            return await ok(me)
+        if fn == 'claim_pass_tier':
+            me['pass']['s1']['f'].append(body['p_tier']); me['coins'] += 25
+            return await ok(me)
+        if fn == 'buy_theme':
+            price = {3: 300, 6: 600}.get(body['p_theme'])
+            if body['p_theme'] not in me['owned']:
+                if price is None:
+                    return await ok({'message': 'not_for_sale'}, 400)
+                if me['coins'] < price:
+                    return await ok({'message': 'not_enough_coins'}, 400)
+                me['coins'] -= price; me['owned'].append(body['p_theme'])
+            me['theme'] = body['p_theme']
+            return await ok(me)
+        if fn == 'report_match':
+            me['coins'] += 30 if body['p_won'] else 10
+            return await ok(me)
+        return await ok({'message': 'unknown ' + path}, 404)
+
+    ctx, pg = await new_page(br, store={'name': 'Сүх', 'xp': 300, 'fmt': 'single'}, route=handle)
+    await pg.goto('file://' + test_page)
+    await wait(pg, "Cloud.state==='online'")
+    await pg.evaluate(PIN_S1)
+    r = [c[1] for c in fake['calls'] if c[0] == 'import_progress']
+    check('first sync: offline XP goes to the account once (import_progress)', len(r) == 1 and r[0]['p_xp'] == 300 and await pg.evaluate("profile.xp") == 300, r)
+    check('server missions and pass replace the phone\'s', await pg.evaluate("profile.missions.list[0].id==='win2'&&passOf('s1').xp===400"))
+    await pg.evaluate(PRACTICE_WIN)
+    await wait(pg, "state==='result'&&progOutbox.length===0", 6000)
+    rep = [c[1] for c in fake['calls'] if c[0] == 'report_progress']
+    check('a finished match is reported with its ref, mode, result and stats; the server\'s XP replaces the phone\'s',
+          rep and re.fullmatch(r'm-[a-z0-9]+-[a-z0-9]+', rep[-1]['p_ref']) and rep[-1]['p_mode'] == 'practice' and rep[-1]['p_won'] is True
+          and {'time', 'pieces', 'lines', 'tspins', 'quads', 'attack', 'combo', 'day', 'ft'} <= set(rep[-1]['p_stats']) and await pg.evaluate("profile.xp") == 350, rep[-1:])
+    await pg.evaluate("leaveMatch()")
+    await pg.evaluate("missionsDialog()")
+    await pg.click('[data-claim="0"]')
+    await pg.wait_for_timeout(300)
+    check('claim through the server (claim_mission)', fake['calls'][-1] == ('claim_mission', {'p_slot': 0}) and await pg.evaluate("profile.missions.list[0].c"))
+    await pg.click('[data-reroll="1"]')
+    await pg.wait_for_timeout(300)
+    check('reroll through the server (reroll_mission)', fake['calls'][-1] == ('reroll_mission', {'p_slot': 1}) and await pg.evaluate("profile.missions.list[1].id==='pieces150'&&profile.missions.rr"))
+    await pg.evaluate("passDialog()")
+    await pg.click('.prew[data-tier="1"][data-prem="0"]')
+    await pg.wait_for_timeout(300)
+    check('pass claim through the server (claim_pass_tier)', ('claim_pass_tier', {'p_season': 's1', 'p_tier': 1, 'p_premium': False}) in fake['calls'] and await pg.evaluate("passOf('s1').f.includes(1)"))
+    await pg.evaluate("closeModal();profile.coins=me=0")
+    me['coins'] = 400
+    await pg.evaluate("sync(true)"); await wait(pg, "Cloud.state==='online'&&profile.coins===400")
+    await pg.click('#shop'); await pg.click('[data-theme="3"]'); await pg.click('#skBuy'); await pg.wait_for_timeout(300)
+    check('a new coin skin bought through the server (buy_theme)', fake['calls'][-1] == ('buy_theme', {'p_theme': 3}) and await pg.evaluate("[profile.theme,profile.coins]") == [3, 100])
+    await pg.evaluate("closeModal()")
+    fake['down'] = True
+    await pg.evaluate("Cloud.state='offline';netView()")
+    await pg.evaluate("Cloud.state='online';" + PRACTICE_WIN.replace("(()=>{", "(()=>{Cloud.state='offline';", 1))
+    await wait(pg, "state==='result'", 5000)
+    await pg.wait_for_timeout(500)
+    check('offline: the match waits in the progress outbox (kept on the phone)', await pg.evaluate("[progOutbox.length,JSON.parse(localStorage.getItem('neon-duel-progress')).length]") == [1, 1])
+    fake['down'] = False; fake['fast'] = True
+    await pg.evaluate("leaveMatch();sync(true)"); await wait(pg, "Cloud.state==='online'", 6000); await pg.wait_for_timeout(400)
+    check('too_fast: the report stays for a retry', await pg.evaluate("progOutbox.length") == 1)
+    fake['fast'] = False
+    await pg.evaluate("flushProgress()"); await wait(pg, "progOutbox.length===0", 4000)
+    check('then it is sent', True)
+    fake['old'] = True
+    xp0 = await pg.evaluate("profile.xp")
+    await pg.evaluate(PRACTICE_WIN)
+    await wait(pg, "state==='result'&&progOutbox.length===0", 6000)
+    check('a server without progression: the report is dropped, the phone keeps its XP', await pg.evaluate("profile.xp") > xp0)
+    await ctx.close()
+
 
 async def main():
     async with async_playwright() as pw:
