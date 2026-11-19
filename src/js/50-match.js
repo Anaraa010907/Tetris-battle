@@ -114,7 +114,7 @@ function finishMatch(win){
   window.renderResultAd?.($('resultAd'),info);         // payments agent (55-store.js): e.g. watch an ad for double coins
   window.onMatchEnd?.(info);                            // payments agent: interstitial pacing (never for online/friend)
   if(!roundEndSent){roundEndSent=true;if(window.parent!==window)window.parent.postMessage({source:'mable-playable',type:'round_end',score:Math.round(+vs)},'*')}
-  if(online){if(!friend)sync(true).then(()=>{waiting=!Cloud.ready();if(state==='result'&&series===s)show()})}
+  if(online){if(!friend)sync(true).then(()=>{waiting=!Cloud.ready();if(state==='result'&&series===s)show()});else flushProgress()}
   else if(Cloud.on()){
     // the server recalculates rating and coins; its numbers replace the local ones when they arrive
     outbox.push({p_kind:ranked?'bot':'ai',p_opponent:rival,p_opponent_rating:rivalRating,p_format:ft?'ft3':'single',p_won:win,

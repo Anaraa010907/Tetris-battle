@@ -430,7 +430,7 @@ const SKINS=[
     palette:['#7fb2d9','#d6cf86','#b19ad9','#86c9a6','#d98a9a','#6670d0','#e0a66a'],garbage:'#6b7280',
     board:{bg:['#141821','#080a10'],grid:'rgba(200,210,230,.10)',dots:'rgba(220,230,245,.22)',frame:'#9aa6bd',glow:'rgba(200,215,240,.10)',accent:'#d7dde8'}},
   {id:7,name:'skinIce',desc:'skinIceD',price:600,style:'ice',
-    palette:['#3fd0ff','#ffe066','#a98bff','#4ff0b0','#ff6fae','#5b8cff','#ff9a5c'],garbage:'#8aa0b8',
+    palette:['#29c7e6','#f5f0b0','#8a7cf0','#5fe0a8','#e8506e','#3a68e0','#f0ad78'],garbage:'#8aa0b8',
     board:{bg:['#071a2e','#03101f'],grid:'rgba(160,220,255,.12)',dots:'rgba(200,240,255,.25)',frame:'#6fb6e0',glow:'rgba(127,227,255,.14)',accent:'#bff0ff'}},
   {id:8,name:'skinNaadam',desc:'skinNaadamD',price:600,style:'medal',
     palette:['#0a6fc2','#f9cf3a','#7e4bc4','#2e9e4f','#da2032','#f4f1e8','#f08a1c'],garbage:'#64584c',

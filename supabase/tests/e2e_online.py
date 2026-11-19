@@ -240,8 +240,8 @@ async def main():
         await asyncio.sleep(1.0)
         ra, rb = await A.js("({out:$('outcome').textContent,chip:$('resultStats').firstElementChild.textContent,rank:profile.rank,wins:profile.wins,coins:profile.coins,eb:$('resultEyebrow').textContent})"), \
             await B.js("({out:$('outcome').textContent,chip:$('resultStats').firstElementChild.textContent,rank:profile.rank,losses:profile.losses,coins:profile.coins})")
-        check('winner result from the server', ra['rank'] == 1012 and ra['wins'] == 1 and ra['coins'] == 60 and ra['chip'].startswith('+12'), ra)
-        check('loser result from the server', rb['rank'] == 988 and rb['losses'] == 1 and rb['coins'] == 20 and rb['chip'].startswith('-12'), rb)
+        check('winner result from the server', ra['rank'] == 1012 and ra['wins'] == 1 and ra['coins'] == 30 and ra['chip'].startswith('+12'), ra)
+        check('loser result from the server', rb['rank'] == 988 and rb['losses'] == 1 and rb['coins'] == 10 and rb['chip'].startswith('-12'), rb)
         check('series stored', psql("select status||' '||(winner='%s')::text||' '||score_a||'-'||score_b from online_matches" % A.uid) == 'finished true 1-0')
         await A.shot('o_result_a.png')
         await B.shot('o_result_b.png')
@@ -328,7 +328,7 @@ async def main():
             await asyncio.sleep(1.2)
             row = psql("select rating||' '||wins||' '||coins from profiles where id='%s'" % C.uid)
             rc = await C.js("[profile.rank,profile.wins,profile.coins,outbox.length]")
-            check('bot win counted by the server', rc[0] > 1000 and row == '%d 1 60' % rc[0] and rc[3] == 0, (row, rc))
+            check('bot win counted by the server', rc[0] > 1000 and row == '%d 1 30' % rc[0] and rc[3] == 0, (row, rc))
             check('stored as a bot match', psql("select kind from matches where user_id='%s'" % C.uid) == 'bot')
             # practice afterwards: coins only (the server allows one report per 10 s)
             psql("update profiles set last_report=null where id='%s'" % C.uid)
@@ -336,7 +336,7 @@ async def main():
             await C.js("finishRound(boards[1])")
             await C.wait("state==='result'", 6000)
             await asyncio.sleep(1.2)
-            check('practice: coins only on the server', psql("select rating||' '||wins||' '||coins from profiles where id='%s'" % C.uid) == '%d 1 120' % rc[0])
+            check('practice: coins only on the server', psql("select rating||' '||wins||' '||coins from profiles where id='%s'" % C.uid) == '%d 1 60' % rc[0])
             await C.js("leaveMatch()")
 
         if not ONLY or 'S6' in ONLY:

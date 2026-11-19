@@ -34,7 +34,7 @@ select pg_temp.expect(title_index(600) = 0 and title_index(1000) = 2 and title_i
 set role authenticated;
 select pg_temp.as_user(:u1);
 select pg_temp.expect((select rating from get_my_profile()) = 1000, 'get_my_profile');
-select pg_temp.expect((select rating = 1000 and wins = 0 and losses = 0 and coins = 60 from report_match('ai', 'NOVA', 1250, 'single', true, 1, 0, '{"pps":1.2}')), 'practice win: coins only, no rank or record');
+select pg_temp.expect((select rating = 1000 and wins = 0 and losses = 0 and coins = 30 from report_match('ai', 'NOVA', 1250, 'single', true, 1, 0, '{"pps":1.2}')), 'practice win: coins only, no rank or record');
 do $$ begin perform report_match('bot', 'Kairo', 1010, 'single', true, 1, 0); raise exception 'no rate limit';
 exception when others then if sqlerrm <> 'too_fast' then raise; end if; raise notice 'ok: rate limit'; end $$;
 reset role; update profiles set last_report = null; set role authenticated;
@@ -42,14 +42,15 @@ do $$ begin perform report_match('bot', 'Kairo', 1010, 'ft3', true, 2, 0); raise
 exception when others then if sqlerrm <> 'bad_score' then raise; end if; raise notice 'ok: score validated'; end $$;
 do $$ begin perform report_match('bot', 'Kairo', 1500, 'single', true, 1, 0); raise exception 'far bot accepted';
 exception when others then if sqlerrm <> 'bad_opponent' then raise; end if; raise notice 'ok: ranked bot must be near the player rating'; end $$;
-select pg_temp.expect((select rating = 1012 and wins = 1 and coins = 120 from report_match('bot', 'Kairo', 1010, 'single', true, 1, 0)), 'ranked bot win near own rating: +12 RP');
+select pg_temp.expect((select rating = 1012 and wins = 1 and coins = 60 from report_match('bot', 'Kairo', 1010, 'single', true, 1, 0)), 'ranked bot win near own rating: +12 RP');
 do $$ begin update profiles set rating = 3000 where id = auth.uid(); raise exception 'direct update allowed';
 exception when insufficient_privilege then raise notice 'ok: no direct writes'; end $$;
 do $$ begin insert into matches (user_id, kind, format, opponent, won, score_me, score_foe, rating_before, rating_after)
   values (auth.uid(), 'ai', 'single', 'x', true, 1, 0, 1, 9999); raise exception 'direct insert allowed';
 exception when insufficient_privilege then raise notice 'ok: no direct match inserts'; end $$;
 
-select pg_temp.expect((select coins = 130 and streak = 1 from claim_daily()), 'daily bonus +10');
+select pg_temp.expect((select coins = 70 and streak = 1 from claim_daily()), 'daily bonus +10');
+reset role; update profiles set coins = coins + 60 where id = :u1; set role authenticated;   -- 130 coins for the theme checks
 do $$ begin perform claim_daily(); raise exception 'claimed twice';
 exception when others then if sqlerrm <> 'already_claimed' then raise; end if; raise notice 'ok: daily once per day'; end $$;
 select pg_temp.expect((select theme = 1 and coins = 30 and owned = '{0,1}' from buy_theme(1)), 'theme bought for 100 coins');
@@ -63,9 +64,9 @@ select pg_temp.expect((select count(*) = 2 from matches), 'player sees only own 
 
 -- ---------------------------------------------------------------- import and the bot cap (player 2)
 select pg_temp.as_user(:u2);
-select pg_temp.expect((select rating = 1400 and wins = 6 and coins = 2000 and owned = '{0,1,2}' and imported from import_local(1800, 6, 2, 9999, '{2,7,1}')), 'one-time import with caps');
+select pg_temp.expect((select rating = 1400 and wins = 6 and coins = 2000 and owned = '{0,1,2}' and imported from import_local(1800, 6, 2, 9999, '{2,40,1}')), 'one-time import with caps');
 select pg_temp.expect((select rating = 1400 from import_local(1000, 0, 0, 0, '{}')), 'import only once');
-select pg_temp.expect((select rating = 1400 and wins = 7 and coins = 2150 from report_match('bot', 'Vega', 1390, 'ft3', true, 3, 1)), 'bot wins give no RP from 1400 up');
+select pg_temp.expect((select rating = 1400 and wins = 7 and coins = 2075 from report_match('bot', 'Vega', 1390, 'ft3', true, 3, 1)), 'bot wins give no RP from 1400 up');
 select pg_temp.expect((select count(*) = 1 from leaderboard), 'leaderboard shows placed players');
 select pg_temp.expect(my_position() = 1, 'position on leaderboard');
 select pg_temp.as_user(:u1);
@@ -275,4 +276,179 @@ exception when insufficient_privilege then raise notice 'ok: anon blocked from o
 select pg_temp.raises('select create_room(''single'')', 'permission denied%', 'anon cannot open a friend room');
 select pg_temp.raises('select join_room(''ABCDEF'')', 'permission denied%', 'anon cannot join a friend room');
 reset role;
+-- ================================================================ progression (20261118100000_progression.sql)
+-- XP, levels, daily missions, season pass, skin prices, match coin cap, private profile columns.
+\set u5 '''55555555-5555-5555-5555-555555555555'''
+\set u6 '''66666666-6666-6666-6666-666666666666'''
+\set u7 '''77777777-7777-7777-7777-777777777777'''
+reset role;
+insert into auth.users (id, raw_user_meta_data) values (:u5, '{"username":"Сүх"}'), (:u6, '{"username":"Нараа"}'), (:u7, '{"username":"Оюу"}');
+create or replace function pg_temp.p(u uuid) returns public.profiles language sql as $$ select * from public.profiles where id = u $$;
+create or replace function pg_temp.today() returns text language sql as $$ select public.ub_today()::text $$;
+
+-- rules, the same numbers as src/js/56-progress.js
+select pg_temp.expect(xp_level(0) = 1 and xp_level(99) = 1 and xp_level(100) = 2 and xp_level(219) = 2 and xp_level(220) = 3 and xp_level(1620) = 10 and xp_level(10000000) = 99, 'level curve: 100 + 20 (L - 1) XP per level, up to 99');
+select pg_temp.expect(level_coins(2) = 25 and level_coins(10) = 150 and level_coins(20) = 150, 'level coins: 25, 150 every tenth level');
+select pg_temp.expect(match_xp('practice', true, false, 88, 95) = 34 and match_xp('practice', false, false, 88, 95) = 24 and match_xp('bot', true, false, 88, 95) = 49
+  and match_xp('online', true, false, 90, 100) = 60 and match_xp('friend', false, false, 90, 100) = 20, 'match XP by mode, result and effort');
+select pg_temp.expect(match_xp('bot', true, true, 240, 300) = 130 and match_xp('online', false, true, 600, 900) = 125 and match_xp('practice', true, false, 8, 6) = 9 and match_xp('online', true, false, 3, 0) = 0,
+  'FT3 x2.5 with more effort; little time or few pieces cap the XP');
+select pg_temp.expect(skin_price(0) = 0 and skin_price(2) = 100 and skin_price(3) = 300 and skin_price(8) = 600 and skin_price(9) = 1200 and skin_price(12) = 2500
+  and skin_price(13) is null and skin_price(20) is null and skin_price(29) is null, 'skin prices: coin skins only');
+select pg_temp.expect(pass_reward('s1', 10, false) = '{"skin":20}' and pass_reward('s1', 25, false) = '{"skin":21}' and pass_reward('s1', 1, true) = '{"skin":22}'
+  and pass_reward('s1', 15, true) = '{"skin":23}' and pass_reward('s1', 30, true) = '{"skin":24}' and pass_reward('s2', 10, false) = '{"skin":25}'
+  and pass_reward('s1', 2, false) = '{"coins":25}' and pass_reward('s1', 2, true) = '{"coins":50}', 'pass rewards: skins at free 10, 25 and premium 1, 15, 30, coins elsewhere');
+select pg_temp.expect((select count(*) = 2 from seasons) and (select bool_and(ends > starts) from seasons), 'seasons table');
+
+-- the shared entitlements block
+set role authenticated;
+select pg_temp.as_user(:u5);
+select pg_temp.raises('insert into entitlements (user_id, sku) values (auth.uid(), ''pass_s1'')', 'permission denied%', 'no direct entitlement inserts');
+select pg_temp.raises(format('select has_entitlement(%L, ''pass_s1'')', :u5), 'permission denied%', 'has_entitlement is not callable by players');
+
+-- today's missions: one per tier, different kinds
+select pg_temp.expect((select missions ->> 'day' = pg_temp.today() and xp = 0 and level = 1 from get_my_profile()), 'get_my_profile starts the day with missions');
+reset role;
+select pg_temp.expect((select array_agg(m.tier order by i) = '{0,1,2}' and count(distinct m.kind) = 3 from jsonb_array_elements((pg_temp.p(:u5)).missions -> 'list') with ordinality e(x, i) join mission_pool m on m.id = e.x ->> 'id'),
+  'missions: easy, medium, hard of three kinds');
+update profiles set missions = jsonb_build_object('day', ub_today()::text, 'rr', false, 'list', '[{"id":"play3","p":0,"c":false},{"id":"lines80","p":0,"c":false},{"id":"pps15","p":0,"c":false}]'::jsonb) where id = :u5;
+set role authenticated;
+
+-- a practice series: XP, first win of the day, a new level and its coins, season XP, missions
+select pg_temp.expect((select xp = 133 and level = 2 and coins = 25 and xp_today = 133 and first_win_day::text = pg_temp.today()
+  from report_progress('m-test-0001', 'practice', true, jsonb_build_object('time', 240, 'pieces', 300, 'lines', 50, 'ft', true, 'day', pg_temp.today()))),
+  'practice FT3 win: 93 XP + 40 first win, level 2 pays 25 coins');
+select pg_temp.expect((select (missions -> 'list' -> 0 ->> 'p')::int = 1 and (missions -> 'list' -> 1 ->> 'p')::int = 50 and (missions -> 'list' -> 2 ->> 'p')::int = 12 from get_my_profile()),
+  'missions advance: play +1, lines +50, best PPS 1.2');
+reset role;
+select pg_temp.expect(coalesce((select ((pg_temp.p(:u5)).pass -> s.id ->> 'xp')::int = 133 from seasons s where ub_today() >= s.starts and ub_today() < s.ends), true), 'season XP follows match XP while a season runs');
+set role authenticated;
+select pg_temp.expect((select xp = 133 from report_progress('m-test-0001', 'practice', true, '{"time":900,"pieces":4000}')), 'the same ref again counts nothing');
+select pg_temp.expect((select count(*) = 1 from progress_reports), 'one report row, own rows only');
+select pg_temp.raises('select report_progress(''m-test-0002'', ''practice'', false, ''{"time":60,"pieces":60}'')', 'too_fast', 'practice and bot reports: one per 10 seconds');
+reset role; update profiles set last_progress = null where id = :u5; set role authenticated;
+select pg_temp.expect((select xp = 148 and coins = 25 from report_progress('m-test-0002', 'practice', true, '{"time":10,"pieces":999,"lines":999,"attack":99999}')),
+  'made-up numbers are cut: 999 pieces in 10 s count as 60, XP 15, first win used');
+select pg_temp.expect((select (missions -> 'list' -> 1 ->> 'p')::int = 50 from get_my_profile()), 'a report without today''s date counts XP only, no missions');
+reset role; update profiles set last_progress = null where id = :u5; set role authenticated;
+select pg_temp.expect((select (missions -> 'list' -> 2 ->> 'p')::int = 15 and (missions -> 'list' -> 0 ->> 'p')::int = 2
+  from report_progress('m-test-0003', 'bot', false, jsonb_build_object('time', 60, 'pieces', 100, 'lines', 10, 'day', pg_temp.today()))), 'PPS mission done at 1.6 PPS (capped at its target)');
+select pg_temp.raises('select report_progress(''m-test-0004'', ''ranked'', true, ''{}'')', 'bad_mode', 'unknown mode refused');
+select pg_temp.raises('select report_progress(''x'', ''practice'', true, ''{}'')', 'bad_ref', 'bad ref refused');
+reset role; update profiles set last_progress = null where id = :u5; set role authenticated;
+select pg_temp.expect((select xp = 183 from report_progress('m-test-0005', 'practice', false, '{"time":"lots","pieces":[1],"ft":"yes"}')), 'non-numbers count as 0: a match with nothing in it gives no XP');
+
+-- claiming and swapping missions
+select pg_temp.raises('select claim_mission(0)', 'not_done', 'an unfinished mission cannot be claimed');
+select pg_temp.raises('select claim_mission(5)', 'bad_slot', 'mission slots 0-2');
+select pg_temp.expect((select coins = 80 and xp = 243 and level = 3 and (missions -> 'list' -> 2 ->> 'c')::boolean from claim_mission(2)), 'claim: medium mission pays 30 coins and 60 XP (level 3 adds 25 coins)');
+select pg_temp.raises('select claim_mission(2)', 'already_claimed', 'a mission is claimed once');
+select pg_temp.expect((select (missions ->> 'rr')::boolean and missions -> 'list' -> 0 ->> 'id' <> 'play3' and (missions -> 'list' -> 0 ->> 'p')::int = 0
+  and (select tier = 0 and kind not in ('lines', 'pps') from mission_pool where id = missions -> 'list' -> 0 ->> 'id') from reroll_mission(0)), 'reroll: a fresh easy mission of another kind');
+select pg_temp.raises('select reroll_mission(1)', 'already_rerolled', 'one free reroll a day');
+-- a new day
+reset role; update profiles set xp_day = ub_today() - 1, xp_today = 999, missions = jsonb_set(missions, '{day}', to_jsonb((ub_today() - 1)::text)) where id = :u5; set role authenticated;
+select pg_temp.expect((select missions ->> 'day' = pg_temp.today() and not (missions ->> 'rr')::boolean and xp_today = 0 and jsonb_array_length(missions -> 'list') = 3 from get_my_profile()),
+  'midnight (Ulaanbaatar): new missions, a new reroll, the daily XP count starts over');
+-- daily XP cap
+reset role; update profiles set xp_today = 2390, last_progress = null where id = :u5; set role authenticated;
+select pg_temp.expect((select xp = 253 and xp_today = 2400 from report_progress('m-test-0006', 'bot', true, '{"time":120,"pieces":150}')), 'daily match XP cap 2400: only 10 more');
+reset role; update profiles set last_progress = null where id = :u5; set role authenticated;
+select pg_temp.expect((select xp = 253 from report_progress('m-test-0007', 'bot', true, '{"time":120,"pieces":150}')), 'nothing past the cap');
+
+-- online and friend results come from the server's row
+reset role;
+insert into online_matches (id, player_a, player_b, format, target, seed, status, ranked, created_at)
+values ('aaaaaaaa-0000-0000-0000-000000000001', :u5, :u6, 'single', 1, 1, 'active', true, now() - interval '100 seconds'),
+       ('aaaaaaaa-0000-0000-0000-000000000002', :u5, :u6, 'ft3', 3, 1, 'finished', false, now() - interval '20 seconds'),
+       ('aaaaaaaa-0000-0000-0000-000000000003', :u5, :u6, 'single', 1, 1, 'abandoned', true, now() - interval '50 seconds');
+update online_matches set finished_at = now(), winner = :u5 where id = 'aaaaaaaa-0000-0000-0000-000000000002';
+update profiles set xp_today = 0 where id = :u5;
+set role authenticated;
+select pg_temp.raises('select report_progress(''aaaaaaaa-0000-0000-0000-000000000001'', ''online'', true, ''{"time":90,"pieces":100}'')', 'not_finished', 'online: not before the server has the result');
+reset role; update online_matches set status = 'finished', winner = :u6, finished_at = now() where id = 'aaaaaaaa-0000-0000-0000-000000000001'; set role authenticated;
+select pg_temp.expect((select xp = 293 from report_progress('aaaaaaaa-0000-0000-0000-000000000001', 'online', true, '{"time":90,"pieces":100}')), 'online: a claimed win the server says was a loss counts as a loss (40 XP)');
+select pg_temp.expect((select not won and mode = 'online' and xp = 40 from progress_reports where ref = 'aaaaaaaa-0000-0000-0000-000000000001'), 'stored as an online loss');
+select pg_temp.expect((select xp = 323 from report_progress('aaaaaaaa-0000-0000-0000-000000000002', 'online', false, '{"time":900,"pieces":999}')),
+  'friend result: mode, winner and length from the server (20 s, so at most 30 XP), no rate limit');
+select pg_temp.expect((select won and mode = 'friend' from progress_reports where ref = 'aaaaaaaa-0000-0000-0000-000000000002'), 'stored as a friendly win');
+select pg_temp.raises('select report_progress(''aaaaaaaa-0000-0000-0000-000000000003'', ''online'', true, ''{}'')', 'bad_match', 'an abandoned match gives no XP');
+select pg_temp.raises('select report_progress(''m-not-a-uuid'', ''online'', true, ''{}'')', 'bad_ref', 'online refs are match ids');
+select pg_temp.as_user(:u7);
+select pg_temp.raises('select report_progress(''aaaaaaaa-0000-0000-0000-000000000001'', ''online'', true, ''{}'')', 'not_your_match', 'only the two players report a match');
+
+-- season pass
+select pg_temp.as_user(:u5);
+reset role; update profiles set pass = '{"s1":{"xp":3600,"f":[],"p":[]}}', coins = 0, owned = '{0,21}' where id = :u5; set role authenticated;
+select pg_temp.expect((select coins = 25 and pass -> 's1' -> 'f' = '[1]' from claim_pass_tier('s1', 1, false)), 'free tier 1: 25 coins');
+select pg_temp.raises('select claim_pass_tier(''s1'', 1, false)', 'already_claimed', 'a tier is claimed once');
+select pg_temp.raises('select claim_pass_tier(''s1'', 11, false)', 'not_reached', 'tier 11 needs 3850 season XP');
+select pg_temp.expect((select owned = '{0,21,20}' and coins = 25 from claim_pass_tier('s1', 10, false)), 'free tier 10: the season skin 20');
+select pg_temp.raises('select claim_pass_tier(''s1'', 1, true)', 'no_pass', 'premium needs the pass_s1 purchase');
+reset role; insert into entitlements (user_id, sku, source) values (:u5, 'pass_s1', 'grant'); set role authenticated;
+select pg_temp.expect((select owned = '{0,21,20,22}' and pass -> 's1' -> 'p' = '[1]' from claim_pass_tier('s1', 1, true)), 'premium tier 1 with the pass: skin 22');
+select pg_temp.expect((select coins = 75 from claim_pass_tier('s1', 2, true)), 'premium tier 2: 50 coins');
+reset role; update entitlements set revoked_at = now() where user_id = :u5; update profiles set pass = jsonb_set(pass, '{s1,xp}', '9000') where id = :u5; set role authenticated;
+select pg_temp.raises('select claim_pass_tier(''s1'', 3, true)', 'no_pass', 'a refunded (revoked) pass unlocks nothing');
+select pg_temp.expect((select coins = 175 and owned = '{0,21,20,22}' from claim_pass_tier('s1', 25, false)), 'a skin already owned pays 100 coins instead');
+select pg_temp.raises('select claim_pass_tier(''zz'', 1, false)', 'bad_season', 'unknown season');
+select pg_temp.raises('select claim_pass_tier(''s1'', 31, false)', 'bad_tier', 'tiers 1-30');
+select pg_temp.as_user(:u6);
+select pg_temp.raises('select claim_pass_tier(''s1'', 1, false)', 'not_reached', 'no season XP, no rewards');
+
+-- skins: coin skins for their price, season skins only from the pass
+reset role; update profiles set coins = 1000 where id = :u6; set role authenticated;
+select pg_temp.expect((select theme = 3 and coins = 700 and owned = '{0,3}' from buy_theme(3)), 'buy a 300-coin skin');
+select pg_temp.expect((select theme = 6 and coins = 100 from buy_theme(6)), 'buy a 600-coin skin');
+select pg_temp.raises('select buy_theme(11)', 'not_enough_coins', 'a 2500-coin skin needs 2500 coins');
+select pg_temp.raises('select buy_theme(20)', 'not_for_sale', 'season skins are not sold for coins');
+select pg_temp.raises('select buy_theme(15)', 'bad_theme', 'an unknown id in range');
+select pg_temp.raises('select buy_theme(40)', 'bad_theme', 'ids above 39');
+select pg_temp.expect((select theme = 3 and coins = 100 from buy_theme(3)), 'an owned skin is equipped for free');
+select pg_temp.as_user(:u5);
+select pg_temp.expect((select theme = 22 from buy_theme(22)), 'a season skin from the pass can be equipped');
+select pg_temp.expect((select theme = 20 from set_profile(null, null, 20)), 'and chosen in the profile');
+select pg_temp.as_user(:u7);
+select pg_temp.expect((select owned = '{0,3,12}' and coins = 100 from import_local(1000, 1, 0, 100, '{3,12,20,15}')), 'import keeps coin skins, drops season and unknown ids');
+select pg_temp.expect((select xp = 6000 and level = xp_level(6000) and progress_imported from import_progress(9000, 's1', 9000)), 'offline XP imported once, capped at 6000');
+select pg_temp.expect((select xp = 6000 from import_progress(100, 's1', 100)), 'XP import only once');
+reset role;
+select pg_temp.expect(coalesce((select ((pg_temp.p(:u7)).pass -> s.id ->> 'xp')::int = 6000 from seasons s where s.id = 's1' and ub_today() >= s.starts and ub_today() < s.ends), true), 'season XP imported for the running season');
+
+-- match coins: 30 / 10 now, and at most 600 a day from practice and bot reports
+insert into matches (user_id, kind, format, opponent, won, score_me, score_foe, rating_before, rating_after, coins)
+select :u7, 'ai', 'single', 'NOVA', true, 1, 0, 1000, 1000, 59 from generate_series(1, 10);
+set role authenticated;
+select pg_temp.expect((select coins = 110 from report_match('ai', 'NOVA', 1000, 'single', true, 1, 0)), 'self-reported coins stop at 600 a day (590 earned: +10)');
+reset role; update profiles set last_report = null where id = :u7; set role authenticated;
+select pg_temp.expect((select coins = 110 from report_match('ai', 'NOVA', 1000, 'single', true, 1, 0)), 'then 0');
+reset role;
+insert into online_matches (id, player_a, player_b, format, target, seed) values ('aaaaaaaa-0000-0000-0000-000000000004', :u6, :u7, 'single', 1, 1);
+create temp table coins_before as select id, coins from profiles where id in (:u6, :u7);
+set role authenticated;
+select pg_temp.expect((select status = 'finished' and winner = :u6 from report_online_game('aaaaaaaa-0000-0000-0000-000000000004', 1)), 'online game reported by the loser');
+reset role;
+select pg_temp.expect((select p.coins - b.coins = 30 from profiles p join coins_before b using (id) where p.id = :u6) and (select p.coins - b.coins = 10 from profiles p join coins_before b using (id) where p.id = :u7),
+  'online series coins: 30 for the winner, 10 for the loser');
+
+-- privacy: everyone sees display columns only; players reach their own row through the functions
+set role authenticated;
+select pg_temp.as_user(:u5);
+select pg_temp.expect((select count(*) > 0 from (select id, username, avatar, rating, wins, losses, theme, level from profiles) x), 'display columns are readable');
+select pg_temp.raises('select coins from profiles', 'permission denied%', 'other columns are not (coins)');
+select pg_temp.raises('select * from profiles', 'permission denied%', 'select * is refused');
+select pg_temp.raises('select missions, pass, xp from profiles where id = auth.uid()', 'permission denied%', 'not even one''s own progress directly');
+select pg_temp.expect((select coins >= 0 and xp > 0 from get_my_profile()), 'own row through get_my_profile');
+select pg_temp.expect((select count(*) >= 0 from leaderboard), 'leaderboard still readable');
+select pg_temp.raises('select grant_xp(auth.uid(), 100000)', 'permission denied%', 'grant_xp is not callable by players');
+select pg_temp.raises('select progress_day(auth.uid())', 'permission denied%', 'progress_day is not callable by players');
+select pg_temp.raises('insert into progress_reports (user_id, ref, mode, won, xp) values (auth.uid(), ''zzzzzzzz'', ''bot'', true, 9999)', 'permission denied%', 'no direct report inserts');
+select pg_temp.raises('update seasons set ends = ''2099-01-01''', 'permission denied%', 'seasons are read-only');
+set role anon;
+select pg_temp.raises('select coins from profiles', 'permission denied%', 'anon: no private columns');
+select pg_temp.expect((select count(*) >= 0 from leaderboard), 'anon: leaderboard readable');
+select pg_temp.raises('select report_progress(''m-test-9999'', ''practice'', true, ''{}'')', 'permission denied%', 'anon cannot report progress');
+select pg_temp.raises('select claim_pass_tier(''s1'', 1, false)', 'permission denied%', 'anon cannot claim pass tiers');
+reset role;
+-- ================================================================ end of progression
 \echo ALL TESTS PASSED
