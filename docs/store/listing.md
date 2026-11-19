@@ -71,9 +71,10 @@ Khan Blocks бол хоёр тоглогчийн блок тулаан. Унаж
 • Монгол хээ угалзаас сэдэвлэсэн блок: блок бүр өөрийн хээтэй тул өнгө ялгахад бэрхшээлтэй хүн ч ялгана
 • Тоглож олсон зоосоороо «Туйлын туяа», «Говийн үдэш» загвар нээ. Загвар тоглолтод давуу тал өгөхгүй
 • Монгол, англи хэлтэй
+• Үнэгүй тоглоом: хүсвэл зар үзэж нэмэлт зоос аваарай. Зоосны багц, «Зар хасах»-ыг апп дотроос худалдаж авч болно
 ```
 
-2022 тэмдэгт.
+2136 тэмдэгт.
 
 **Офлайн build гаргах бол** "ОНЛАЙН 1V1" хэсгийг бүхэлд нь дараахаар солино:
 
@@ -159,9 +160,10 @@ AND MORE
 • Blocks carved with Mongolian ornament: every piece has its own motif, so they are easy to tell apart even without colour
 • Unlock the Aurora tubes and Gobi sunset styles with coins you earn by playing. Styles never change gameplay
 • Mongolian and English
+• Free to play: watch an optional ad for bonus coins. Coin packs and Remove ads are available as in-app purchases
 ```
 
-1971 characters.
+2085 characters.
 
 **For an offline build**, replace the whole "ONLINE 1V1" section with:
 
@@ -241,3 +243,22 @@ Puzzle ангилалд унаж буй блокийн тоглоомууд их
   Android-ийн icon (`android/app/src/main/res/mipmap-*`, энгийн ба adaptive давхарга) ижил зургаар шинэчлэгдсэн: хар хөх шөнийн
   дэвсгэр дээр хээтэй алтан цагираг, голд нь «Хээ угалз» загварын алтан блок, дээр нь хааны титэм (бичиггүй).
 - Icon, feature graphic, тоглоомын лого нэг хэв маягтай (алтан KHAN BLOCKS, титэм, хээ угалз, хар хөх шөнө).
+
+---
+
+## 7. Зар ба худалдан авалт (дэлгүүрийн хуудсанд)
+
+- Play Console-д **Ads: Yes** гэж зарласнаар хуудсанд «**Contains ads**», идэвхтэй бүтээгдэхүүн байгаа үед «**In-app purchases**» гэж Google өөрөө харуулна. Тайлбарт дээрх «Үнэгүй тоглоом…» / «Free to play…» мөрөөр үүнийг шударгаар хэлсэн.
+- Дэлгэцийн зурагт үнэ харагдахгүй байх ёстой (4-р хэсэг): дэлгүүрийн зургийг (7) «Зоос ба нэмэлт» хэсгээс дээш гүйлгэж авна.
+- Тайлбар, зурагт QPay, банкны шилжүүлэг гэх мэт Google Play-ээс өөр төлбөрийн арга бүү дурд (Play-ийн Payments бодлого).
+- Монгол Play-ийн улсад худалдан авалт хийх боломжгүй байж болно (`docs/MONETIZATION.md`, 0-р хэсэг). Апп бүх улсад нэг тул тайлбар худалдан авалтыг гол зүйл биш, «хүсвэл» гэсэн нэмэлт гэж бичсэн; тоглоом бүхэлдээ үнэгүй тоглогдоно.
+
+### Play Console-ийн бүтээгдэхүүний нэр, тайлбар
+
+| Product ID | Нэр (mn) | Тайлбар (mn) | Name (en) | Description (en) |
+| --- | --- | --- | --- | --- |
+| `coins_small` | 500 зоос | Блокийн загвар нээх зоос | 500 coins | Coins to unlock block styles |
+| `coins_medium` | 1,200 зоос | Блокийн загвар нээх зоос | 1,200 coins | Coins to unlock block styles |
+| `coins_large` | 3,500 зоос | Блокийн загвар нээх зоос | 3,500 coins | Coins to unlock block styles |
+| `remove_ads` | Зар хасах | Тоглолт хооронд зар гарахгүй. Шагналтай зар хүсвэл үзнэ | Remove ads | No ads between matches. Reward videos stay optional |
+| `pass_s1` | Улирлын пасс: 1-р улирал | 1-р улирлын premium шагналуудыг нээнэ | Season pass: Season 1 | Unlocks the Season 1 premium rewards |

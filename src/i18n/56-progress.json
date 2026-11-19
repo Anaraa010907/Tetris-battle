@@ -106,7 +106,9 @@
     "skinFireHorse": "Fire horse",
     "skinFireHorseD": "Embers that gallop with every clear",
     "skinCosmicKhan": "Cosmic Khan",
-    "skinCosmicKhanD": "A gold-framed night sky for the White Month"
+    "skinCosmicKhanD": "A gold-framed night sky for the White Month",
+    "premiumUnavailable": "The premium pass can't be bought here right now. Every free reward is still yours.",
+    "premiumPending": "Google Play is still finishing the purchase. The premium track opens as soon as it is done."
   },
   "mn": {
     "levelN": "{n}-р түвшин",
@@ -215,6 +217,8 @@
     "skinFireHorse": "Галт морь",
     "skinFireHorseD": "Мөр цэвэрлэх бүрд давхих цог",
     "skinCosmicKhan": "Сансрын хаан",
-    "skinCosmicKhanD": "Цагаан сарын алтан хүрээтэй шөнийн тэнгэр"
+    "skinCosmicKhanD": "Цагаан сарын алтан хүрээтэй шөнийн тэнгэр",
+    "premiumUnavailable": "Премиум эрхийг одоогоор эндээс авах боломжгүй байна. Үнэгүй замын бүх шагнал таных хэвээр.",
+    "premiumPending": "Google Play худалдан авалтыг дуусгаж байна. Дуусмагц премиум зам нээгдэнэ."
   }
 }

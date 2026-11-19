@@ -40,6 +40,10 @@ function passReward(se,tier,premium){
 }
 const passSku=se=>'pass_'+se.id;
 const hasPremium=se=>!!window.Store?.has?.(passSku(se));
+// the premium pass can be bought only where the phone app's Play billing offers it (not in every Play country):
+// elsewhere the premium track stays visible and locked with a neutral note, and the free track is the whole reward
+const canBuyPass=se=>!!(window.Store?.ready?.()&&window.Store.price?.(passSku(se)));
+const premiumNote=()=>window.Store?'premiumUnavailable':'premiumAppOnly';
 async function claimPassTier(id,tier,premium){
   const se=seasonById(id);if(!se)return null;
   const owned0=new Set(profile.owned);
@@ -78,8 +82,8 @@ function renderPass(el,again){
     +'<div class="pxp"><i style="width:'+Math.round(into/PASS_XP*100)+'%"></i></div><p class="muted small pxpnote">'+(tier>=PASS_TIERS?t('passMaxed'):t('passToNext').replace('{n}',PASS_XP-into))+'</p>';
   // premium: owned, buyable in the app, or explained
   if(prem)h+='<div class="ppremium on">◆ '+t('premiumOwned')+'</div>';
-  else if(window.Store&&live)h+='<button class="primary wide" id="passBuy">◆ '+t('premiumUnlock')+(window.Store.price?.(passSku(se))?' · '+esc(window.Store.price(passSku(se))):'')+'</button><p class="muted small pnote">'+t('premiumWhat')+'</p>';
-  else h+='<div class="ppremium">'+t(window.Store?'premiumEnded':'premiumAppOnly')+'</div>';
+  else if(live&&canBuyPass(se))h+='<button class="primary wide" id="passBuy">◆ '+t('premiumUnlock')+' · '+esc(window.Store.price(passSku(se)))+'</button><p class="muted small pnote">'+t('premiumWhat')+'</p>';
+  else h+='<div class="ppremium">'+t(!live&&window.Store?'premiumEnded':premiumNote())+'</div>';
   h+='<div class="pcols"><span></span><span>'+t('trackFree')+'</span><span class="gold">◆ '+t('trackPremium')+'</span></div><div class="ptiers" id="passTiers">';
   const cell=(n,premium)=>{
     const r=passReward(se,n,premium),got=(premium?p.p:p.f).includes(n),reached=n<=tier,can=reached&&!got&&(!premium||prem);
@@ -94,7 +98,7 @@ function renderPass(el,again){
   el.querySelectorAll('.prew').forEach(b=>b.onclick=async()=>{
     const n=+b.dataset.tier,premium=b.dataset.prem==='1';
     if(!b.classList.contains('ready')){
-      if(premium&&!prem&&!b.classList.contains('got'))info('seasonPass',window.Store?'premiumWhat':'premiumAppOnly');
+      if(premium&&!prem&&!b.classList.contains('got'))info('seasonPass',canBuyPass(se)?'premiumWhat':premiumNote());
       return;
     }
     b.classList.remove('ready');
@@ -109,7 +113,8 @@ function renderPass(el,again){
     $('passBuy').disabled=true;
     let r=null;try{r=await window.Store.buy(passSku(se))}catch(e){}
     if($('passBox'))again();
-    if(r&&!r.ok&&r.reason&&r.reason!=='cancelled')msgBox(t('errGeneric'),again);
+    // the Store's reasons: cancel (nothing to say), pending (Play finishes it later), anything else: not available now
+    if(r&&!r.ok&&r.reason!=='cancel'&&r.reason!=='busy')msgBox(t(r.reason==='pending'?'premiumPending':'premiumUnavailable'),again);
   };
 }
 let passAgain=null;

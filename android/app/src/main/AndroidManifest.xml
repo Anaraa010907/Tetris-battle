@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- online accounts, ranked matchmaking and live matches (Supabase) -->
+    <!-- online accounts, ranked matchmaking and live matches (Supabase); ads and purchases -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The ads SDK adds ACCESS_NETWORK_STATE, READ_BASIC_PHONE_STATE and com.google.android.gms.permission.AD_ID
+         (advertising ID) at build time, and Play Billing adds com.android.vending.BILLING. Declare them in Play
+         Console (Advertising ID, Data safety): docs/MONETIZATION.md. -->
 
     <!--
       allowBackup: Android's own backup (to the player's Google account) keeps offline progress and the
@@ -30,5 +33,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- AdMob app ID (the UMP consent SDK reads it here). Google's test ID unless the release build got the real
+             one from the ADMOB_APP_ID secret (app/build.gradle). -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${admobAppId}" />
     </application>
 </manifest>

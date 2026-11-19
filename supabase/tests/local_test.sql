@@ -276,11 +276,108 @@ exception when insufficient_privilege then raise notice 'ok: anon blocked from o
 select pg_temp.raises('select create_room(''single'')', 'permission denied%', 'anon cannot open a friend room');
 select pg_temp.raises('select join_room(''ABCDEF'')', 'permission denied%', 'anon cannot join a friend room');
 reset role;
+
+-- ================================================================ payments and ads (20261118000000_payments.sql)
+-- (the payments agent's section; kept in one block, placed before the final echo so it still means all passed)
+reset role;
+grant usage on schema public to service_role;                  -- as on Supabase: the Edge Function's role
+\set p1 '''55555555-5555-5555-5555-555555555555'''
+\set p2 '''66666666-6666-6666-6666-666666666666'''
+insert into auth.users (id, raw_user_meta_data) values (:p1, '{"username":"Худалдан"}'), (:p2, '{"username":"Сэргээх"}');
+select pg_temp.expect(sku_kind('coins_small') = 'coins' and sku_kind('remove_ads') = 'entitlement' and sku_kind('pass_s1') = 'entitlement'
+  and sku_kind('pass_S1') is null and sku_kind('gems') is null and sku_coins('coins_medium') = 1200 and sku_coins('coins_large') = 3500, 'pay: product table');
+set role authenticated;
+select pg_temp.as_user(:p1);
+select pg_temp.raises(format('select record_purchase(%L, ''coins_small'', ''tok-coins-0001'', ''GPA.1'', now())', :p1), 'permission denied%', 'pay: players cannot record purchases');
+select pg_temp.raises('select revoke_purchase(''tok-coins-0001'')', 'permission denied%', 'pay: players cannot revoke purchases');
+select pg_temp.raises(format('select has_entitlement(%L, ''remove_ads'')', :p1), 'permission denied%', 'pay: has_entitlement is not callable by players');
+select pg_temp.expect((select e->'skus' = '[]'::jsonb and not (e->>'paid')::boolean and (e->'ads'->>'free_coins')::int = 0
+  and (e->'limits'->>'free_coins')::int = 5 from my_entitlements() e), 'pay: my_entitlements, nothing yet');
+reset role;
+-- the verify-purchase Edge Function (service role) records purchases it has checked with Google Play
+set role service_role;
+select pg_temp.expect((select r->>'status' = 'granted' and (r->>'coins')::int = 500 and (r->'profile'->>'coins')::int = 500 and (r->>'paid')::boolean
+  and r->'skus' = '[]'::jsonb from record_purchase(:p1, 'coins_small', 'tok-coins-0001', 'GPA.0001', now()) r), 'pay: coin pack adds its coins');
+select pg_temp.expect((select r->>'status' = 'already' and (r->>'coins')::int = 0 and (r->'profile'->>'coins')::int = 500
+  from record_purchase(:p1, 'coins_small', 'tok-coins-0001', 'GPA.0001', now()) r), 'pay: the same token again grants nothing');
+select pg_temp.raises(format('select record_purchase(%L, ''coins_small'', ''tok-coins-0001'', ''GPA.0001'', now())', :p2), 'token_used', 'pay: a coin token cannot be used by another account');
+select pg_temp.raises(format('select record_purchase(%L, ''coins_medium'', ''tok-coins-0001'', ''GPA.0001'', now())', :p1), 'token_mismatch', 'pay: a token belongs to one product');
+select pg_temp.raises(format('select record_purchase(%L, ''gems'', ''tok-gems-00001'', null, now())', :p1), 'bad_sku', 'pay: unknown products are refused');
+select pg_temp.raises(format('select record_purchase(%L, ''coins_small'', ''short'', null, now())', :p1), 'bad_token', 'pay: token checked');
+select pg_temp.expect((select r->>'status' = 'granted' and r->'skus' = '["remove_ads"]'::jsonb and (r->'profile'->>'coins')::int = 500
+  from record_purchase(:p1, 'remove_ads', 'tok-noads-0001', 'GPA.0002', now()) r), 'pay: remove_ads becomes an entitlement');
+select pg_temp.expect((select r->'skus' = '["pass_s1", "remove_ads"]'::jsonb from record_purchase(:p1, 'pass_s1', 'tok-pass-s1-01', 'GPA.0003', now(), true) r), 'pay: season pass granted');
+reset role;
+select pg_temp.expect(has_entitlement(:p1, 'remove_ads') and has_entitlement(:p1, 'pass_s1') and not has_entitlement(:p2, 'remove_ads'), 'pay: has_entitlement');
+select pg_temp.expect((select count(*) = 0 from entitlements where sku like 'coins%'), 'pay: coin packs never become entitlement rows');
+select pg_temp.expect((select test and order_id = 'GPA.0003' from purchases where purchase_token = 'tok-pass-s1-01'), 'pay: test purchases are marked');
+-- restoring on another game account of the same Google account moves the non-consumable there
+set role service_role;
+select pg_temp.expect((select r->>'status' = 'transferred' and r->'skus' = '["remove_ads"]'::jsonb
+  from record_purchase(:p2, 'remove_ads', 'tok-noads-0001', 'GPA.0002', now(), false, true) r), 'pay: restore moves remove_ads to the restoring account');
+reset role;
+select pg_temp.expect(has_entitlement(:p2, 'remove_ads') and not has_entitlement(:p1, 'remove_ads') and has_entitlement(:p1, 'pass_s1'), 'pay: only one account holds it');
+set role service_role;
+select pg_temp.raises(format('select record_purchase(%L, ''remove_ads'', ''tok-noads-0001'', ''GPA.0002'', now())', :p1), 'token_used', 'pay: without restore it does not move back');
+-- refunds and voided purchases
+select pg_temp.expect((select r->>'status' = 'revoked' from revoke_purchase('tok-noads-0001', 'refund') r), 'pay: voided remove_ads');
+select pg_temp.expect((select r->>'status' = 'already' from revoke_purchase('tok-noads-0001', 'refund') r)
+  and (select r->>'status' = 'unknown' from revoke_purchase('tok-unknown-01') r), 'pay: revoke is idempotent');
+reset role;
+select pg_temp.expect(not has_entitlement(:p2, 'remove_ads'), 'pay: a refund revokes the entitlement');
+set role service_role;
+select pg_temp.raises(format('select record_purchase(%L, ''remove_ads'', ''tok-noads-0001'', ''GPA.0002'', now(), false, true)', :p2), 'purchase_revoked', 'pay: a voided token cannot be restored');
+select pg_temp.expect((select r->'skus' = '["remove_ads"]'::jsonb from record_purchase(:p2, 'remove_ads', 'tok-noads-0002', 'GPA.0004', now()) r), 'pay: buying again after a refund grants it again');
+reset role; update profiles set coins = 200 where id = :p1; set role service_role;
+select revoke_purchase('tok-coins-0001', 'chargeback');
+reset role;
+select pg_temp.expect((select coins = 0 from profiles where id = :p1), 'pay: a coin refund takes coins back, never below 0');
+-- rewarded ads
+set role authenticated;
+select pg_temp.as_user(:p1);
+select pg_temp.expect((select r->>'status' = 'granted' and (r->>'granted')::int = 30 and (r->'profile'->>'coins')::int = 30 and (r->'ads'->>'free_coins')::int = 1
+  from claim_ad_reward('free_coins', 'f-1') r), 'ads: free coins +30');
+select pg_temp.raises('select claim_ad_reward(''free_coins'', ''f-2'')', 'too_fast', 'ads: rewards at least 10 seconds apart');
+select pg_temp.expect((select r->>'status' = 'already' and (r->>'granted')::int = 0 from claim_ad_reward('free_coins', 'f-1') r), 'ads: the same ref again grants nothing');
+reset role; update ad_rewards set created_at = created_at - interval '1 minute'; set role authenticated;
+select pg_temp.expect((select (r->>'granted')::int = 150 from claim_ad_reward('double_coins', 'm-1', 400) r), 'ads: double coins capped at 150');
+reset role; update ad_rewards set created_at = created_at - interval '1 minute'; set role authenticated;
+select pg_temp.expect((select (r->>'granted')::int = 60 and (r->'profile'->>'coins')::int = 240 from claim_ad_reward('double_coins', 'm-2', 60) r), 'ads: double coins gives the match''s coins');
+select pg_temp.expect((select r->>'status' = 'already' and (r->'profile'->>'coins')::int = 240 from claim_ad_reward('double_coins', 'm-2', 60) r), 'ads: double coins once per match ref');
+reset role; update ad_rewards set created_at = created_at - interval '1 minute'; set role authenticated;
+select pg_temp.raises('select claim_ad_reward(''double_coins'', ''m-3'', 0)', 'bad_coins', 'ads: doubling needs coins earned');
+select pg_temp.raises('select claim_ad_reward(''bonus'', ''x1'')', 'bad_placement', 'ads: unknown placement');
+select pg_temp.raises('select claim_ad_reward(''free_coins'', ''<b>'')', 'bad_ref', 'ads: ref checked');
+reset role;
+insert into ad_rewards (user_id, placement, ref, coins, day, created_at)
+  select :p1, 'free_coins', 'old-' || g, 30, (now() at time zone 'Asia/Ulaanbaatar')::date, now() - interval '1 hour' from generate_series(1, 4) g;
+set role authenticated;
+select pg_temp.raises('select claim_ad_reward(''free_coins'', ''f-6'')', 'daily_limit', 'ads: free coins 5 a day (Ulaanbaatar day)');
+reset role; update ad_rewards set day = day - 1 where user_id = :p1 and placement = 'free_coins'; set role authenticated;
+select pg_temp.expect((select (r->>'granted')::int = 30 from claim_ad_reward('free_coins', 'f-7') r), 'ads: a new day brings new free coins');
+select pg_temp.expect((select (e->'ads'->>'free_coins')::int = 1 and (e->'ads'->>'double_coins')::int = 2 and (e->>'paid')::boolean
+  and e->'skus' = '["pass_s1"]'::jsonb from my_entitlements() e), 'ads: my_entitlements counts today''s rewards');
+select pg_temp.raises('insert into ad_rewards (user_id, placement, ref, coins, day) values (auth.uid(), ''free_coins'', ''zz'', 999, current_date)', 'permission denied%', 'pay: no direct ad reward inserts');
+select pg_temp.raises('insert into entitlements (user_id, sku) values (auth.uid(), ''remove_ads'')', 'permission denied%', 'pay: no direct entitlement inserts');
+select pg_temp.raises('update purchases set state = ''purchased''', 'permission denied%', 'pay: no direct purchase updates');
+select pg_temp.expect((select count(*) = 2 from purchases) and (select count(*) = 2 from entitlements) and (select count(*) = 8 from ad_rewards), 'pay: players see only their own rows');
+reset role;
+set role anon;
+select pg_temp.raises('select my_entitlements()', 'permission denied%', 'pay: anon cannot read entitlements');
+select pg_temp.raises('select claim_ad_reward(''free_coins'', ''a1'')', 'permission denied%', 'pay: anon cannot claim ad rewards');
+reset role;
+set role authenticated;
+select pg_temp.as_user(:p1);
+select delete_my_account();
+reset role;
+select pg_temp.expect(not exists (select 1 from purchases where purchase_token = 'tok-pass-s1-01') and not exists (select 1 from ad_rewards where user_id = :p1)
+  and not exists (select 1 from entitlements where user_id = :p1), 'pay: deleting the account removes its purchases, rewards and entitlements');
+-- ================================================================ end of payments and ads
 -- ================================================================ progression (20261118100000_progression.sql)
 -- XP, levels, daily missions, season pass, skin prices, match coin cap, private profile columns.
-\set u5 '''55555555-5555-5555-5555-555555555555'''
-\set u6 '''66666666-6666-6666-6666-666666666666'''
-\set u7 '''77777777-7777-7777-7777-777777777777'''
+\set u5 '''88888888-8888-8888-8888-888888888888'''
+\set u6 '''99999999-9999-9999-9999-999999999999'''
+\set u7 '''bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'''
 reset role;
 insert into auth.users (id, raw_user_meta_data) values (:u5, '{"username":"Сүх"}'), (:u6, '{"username":"Нараа"}'), (:u7, '{"username":"Оюу"}');
 create or replace function pg_temp.p(u uuid) returns public.profiles language sql as $$ select * from public.profiles where id = u $$;

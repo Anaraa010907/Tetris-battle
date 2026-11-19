@@ -20,6 +20,7 @@
 | **Холбоо барих имэйл** | Нууцлалын бодлого, бүртгэл устгах хуудас, дэлгүүрийн хуудсанд олон нийтэд харагдана. Тоглоомд зориулсан тусдаа имэйл нээхийг зөвлөж байна |
 | **Хөгжүүлэгчийн нэр** | Google Play-ийн developer name, App Store-д таны хуулийн нэр seller болж харагдана |
 | **Repo-ийн нэр** | GitHub Pages-ийн хаяг repo-ийн нэрийг агуулна (1.2-ыг үз) |
+| **Зар ба худалдан авалт** | Апп AdMob-ийн зар (шагналтай, тоглолт хоорондын), Google Play-ийн худалдан авалт (зоос, «Зар хасах», улирлын пасс) агуулдаг. AdMob бүртгэл, жинхэнэ ID-г secret болгох, Play Console-д бүтээгдэхүүн үүсгэх, онлайн build-д сервер дээр шалгах: **`docs/MONETIZATION.md`**. Монгол Google Play-д худалдан авалт хийх боломжгүй улсад тооцогддог (тэр баримтын 0-р хэсэг) |
 | **Аппын нэр** | **Khan Blocks** (дэлгүүрт "Khan Blocks: 1v1 Block Battle" / "Khan Blocks: Блокийн тулаан", шалтгааныг `docs/NAME.md`-ээс үз). Package name `com.anaraa.khanblocks`: Google Play-д анх оруулсны дараа хэзээ ч өөрчлөгдөхгүй |
 
 ---
@@ -142,15 +143,17 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 
 Онлайн хувилбар гаргах бол `SUPABASE_URL`, `SUPABASE_ANON_KEY` secret-ийг мөн нэмнэ (`docs/SUPABASE.md`).
 
+Жинхэнэ зар харуулах бол `ADMOB_APP_ID`, `ADMOB_REWARDED_ID`, `ADMOB_INTERSTITIAL_ID` гурван secret-ийг нэмнэ (`docs/MONETIZATION.md`, 6-р хэсэг). Байхгүй бол build Google-ийн туршилтын зарыг харуулна, run-ийн Summary-д «Ads: TEST» гэж гарна.
+
 ### 2.5. Release AAB бүтээх
 
 1. Repo → **Actions → Build release AAB for Google Play → Run workflow**.
 2. `version_code` хоосон орхивол автоматаар `ажиллуулсан дугаар + 100` болно (101, 102, ...). Google Play-д илгээх бүр өмнөхөөсөө **их** versionCode-той байх ёстой.
-3. Дуусахад run-ийн хуудасны **Summary** дээр **ONLINE** эсвэл **OFFLINE**, мөн versionCode харагдана. Доор нь **Artifacts**-аас `khan-blocks-release-aab-…` zip-ийг татаж задлахад `app-release.aab` гарна.
+3. Дуусахад run-ийн хуудасны **Summary** дээр **ONLINE** эсвэл **OFFLINE**, зар **REAL** эсвэл **TEST**, мөн versionCode харагдана. Доор нь **Artifacts**-аас `khan-blocks-release-aab-…` zip-ийг татаж задлахад `app-release.aab` гарна.
 
 - Workflow эхлээд secret-үүдийг шалгана. Нууц үг эсвэл alias буруу бол тодорхой алдаа гаргаж зогсоно. Log-д upload key-ийн SHA-1 ба SHA-256 хурууны хээ харагдана (нууц биш). Play Console-ийн хуудсанд байгаатай таарч байгаа эсэхийг шалгаж болно.
 - Амжилтгүй болсон run-ийг **Re-run** хийвэл ижил дугаар авна. Шинэ upload-д **Run workflow**-ээр шинэ run эхлүүлнэ.
-- `versionName` (хэрэглэгчид харагдах "1.3") нь `android/app/build.gradle`-д бий. Шинэ хувилбар бүрд нэмэгдүүлнэ.
+- `versionName` (хэрэглэгчид харагдах "1.4": зар, худалдан авалттай анхны хувилбар) нь `android/app/build.gradle`-д бий. Шинэ хувилбар бүрд нэмэгдүүлнэ.
 - Workflow файлын нэрийг солибол ажиллуулсан дугаар 1-ээс эхэлнэ. Тэр үед `version_code`-оо гараар (өмнөхөөсөө их) өгнө.
 - Утсандаа туршихад хуучин **Build Android APK** workflow (debug APK) хэвээрээ ажиллана.
 
@@ -181,17 +184,18 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 
 **App access:** **All functionality is available without any special access**. Онлайн хувилбарт зочин бүртгэл автоматаар үүсдэг, нэвтрэх шаардлагагүй. (Хүсвэл тэмдэглэлд: "Ranked: if no opponent is found within 10 seconds, a labelled bot match is offered" гэж бичнэ.)
 
-**Ads:** **No, my app does not contain ads.** Зар нэмэх үед энэ хариултыг өөрчилж, нууцлалын бодлогыг шинэчилнэ.
+**Ads:** **Yes, my app contains ads.** Зарыг Google AdMob үзүүлдэг: тоглогч өөрөө сонгож үздэг шагналтай зар, бэлтгэл ба ботой тоглолтын дараа ховор гарах зар (`docs/MONETIZATION.md`, 2-р хэсэг). Дэлгүүрийн хуудсанд «Contains ads» гэж харагдана.
 
 **Content rating:** IARC асуулга. Ангилал **Game**. Хүчирхийлэл, айдас, бүдүүлэг үг, мөрийтэй тоглоом, хар тамхи **байхгүй** (хийсвэр блок). Хоёр хувилбарын ялгаа:
-- *Онлайн:* хэрэглэгчид бие биентэйгээ харилцах уу гэсэн асуултад **Yes**: тоглогчид бие биенийхээ хочийг харж, хамт тоглодог (чат байхгүй). Байршил хуваалцахгүй, дижитал худалдан авалт байхгүй.
+- *Онлайн:* хэрэглэгчид бие биентэйгээ харилцах уу гэсэн асуултад **Yes**: тоглогчид бие биенийхээ хочийг харж, хамт тоглодог (чат байхгүй). Байршил хуваалцахгүй.
 - *Офлайн:* хэрэглэгчийн харилцаа **No**.
+- *Хоёуланд:* дижитал бараа худалдаж авах боломж (зоос, «Зар хасах», пасс) **Yes**: үнэлгээнд «In-App Purchases» гэж нэмэгдэнэ. Санамсаргүй шагнал (loot box) **байхгүй**: бүх бараа юу өгөхөө урьдчилан хэлдэг.
 
-**Target audience and content:** **13–15, 16–17, 18+** насыг сонгохыг зөвлөж байна. 13-аас доош нас сонговол Google Play-ийн Families бодлогын нэмэлт шаардлага (зар, мэдээлэл цуглуулалт гэх мэт) хамаарна. Хуудасны зураг, тайлбар нь бага насны хүүхдэд зориулсан мэт (хүүхэлдэйн дүр гэх мэт) харагдвал Google татгалзаж болно. Нууцлалын бодлогод "13-аас доош насныханд зориулаагүй" гэж бичсэн.
+**Target audience and content:** **13–15, 16–17, 18+** насыг сонгоно (зартай болсон тул заавал). 13-аас доош нас сонговол Google Play-ийн Families бодлогын нэмэлт шаардлага (зөвхөн Families-д зөвшөөрөгдсөн зарын SDK, advertising ID илгээхгүй гэх мэт) хамаарна. Апп зарын хүсэлтдээ «өсвөр насныханд тохирох (T) хүртэлх зар» гэж хязгаарладаг. Хуудасны зураг, тайлбар нь бага насны хүүхдэд зориулсан мэт (хүүхэлдэйн дүр гэх мэт) харагдвал Google татгалзаж болно. Нууцлалын бодлогод "13-аас доош насныханд зориулаагүй" гэж бичсэн.
 
 **News app, COVID-19, Government, Financial features, Health:** бүгд **No / Not applicable**.
 
-**Advertising ID:** **No**. Апп зар, аналитик SDK-гүй, manifest-д `AD_ID` зөвшөөрөл байхгүй.
+**Advertising ID:** **Yes**. AdMob-ийн SDK build хийхэд manifest-д `com.google.android.gms.permission.AD_ID`-г автоматаар нэмдэг (Android 13+-д энэ зөвшөөрөлгүй бол ID тэгээр солигддог). Зорилго: **Advertising or marketing**, **Analytics**, **Fraud prevention, security, and compliance**.
 
 **Data safety:** доорх 2.9.
 
@@ -199,11 +203,23 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 
 Google-ийн тодорхойлолтоор "цуглуулах" гэдэг нь мэдээлэл утаснаас гадагш дамжихыг хэлнэ. Зөвхөн утсанд хадгалагдах мэдээллийг зарлах шаардлагагүй. Supabase бол таны өмнөөс ажилладаг **service provider** тул түүнд дамжуулахыг "хуваалцах" (sharing) гэж тооцохгүй.
 
+**Зар (хоёр build-д хоёуланд):** AdMob-ийн SDK дараах мэдээллийг автоматаар цуглуулж, зар сурталчилгааны зорилгоор Google-тэй **хуваалцдаг** (Google-ийн «Play data disclosure» хуудсаар). Иймээс офлайн build ч одоо мэдээлэл цуглуулдаг гэж зарлана:
+
+| Ангилал → төрөл | Юу | Collected | Shared | Ephemeral | Required/Optional | Зорилго |
+| --- | --- | --- | --- | --- | --- | --- |
+| Location → **Approximate location** | IP хаягаар тооцсон ерөнхий байршил | Yes | Yes | No | Required | Advertising or marketing, Analytics, Fraud prevention, security, and compliance |
+| App activity → **App interactions** | апп нээх, товших, видео үзэх | Yes | Yes | No | Required | ижил |
+| App info and performance → **Crash logs**, **Diagnostics** | алдаа, ачаалах хугацаа, гацалт, эрчим хүч | Yes | Yes | No | Required | ижил |
+| Device or other IDs → **Device or other IDs** | Android advertising ID, app set ID | Yes | Yes | No | Required | ижил |
+
+Худалдан авалтыг Google Play өөрөө боловсруулдаг (картын мэдээлэл тоглоомд хэзээ ч ирэхгүй).
+
 #### Офлайн build (summary-д OFFLINE)
 
 | Асуулт | Хариулт |
 | --- | --- |
-| Does your app collect or share any of the required user data types? | **No** |
+| Does your app collect or share any of the required user data types? | **Yes**: зөвхөн дээрх зарын хүснэгт (тоглоом өөрөө юу ч илгээхгүй, худалдан авалт утсанд л бүртгэгдэнэ) |
+| Is all of the user data collected by your app encrypted in transit? | **Yes** |
 | Account creation | Апп бүртгэл үүсгэдэггүй гэж хариулна. Офлайн "Бүртгүүлэх" нь зөвхөн утсанд үүсдэг; Google "бүрэн офлайн үүсэж ажилладаг бүртгэл бол аппын бүртгэл биш" гэж тодорхойлсон |
 | Data deletion | Хэрэглэгч Профайл (эсвэл Тохиргоо) → "Профайл устгах"-аар утсан дахь мэдээллээ устгадаг. Бүртгэл устгах вэб хаягийн талбар гарвал 1.3-ын `delete.html`-ийг өгч болно |
 
@@ -226,14 +242,17 @@ Google-ийн тодорхойлолтоор "цуглуулах" гэдэг н�
 | Personal info → **Name** | хоч (Google "nickname"-ийг Name-д оруулдаг) | Yes | No | No | Required | App functionality, Account management |
 | Personal info → **Email address** | "Бүртгэлээ хамгаалах" дээр өөрөө оруулсан имэйл | Yes | No | No | **Optional** | Account management |
 | Personal info → **User IDs** | санамсаргүй бүртгэлийн дугаар (account ID) | Yes | No | No | Required | App functionality, Account management |
-| App activity → **Other actions** | тоглолтын дүн, rank оноо, зоос, тоглолтын статистик ("gameplay" энд хамаарна) | Yes | No | No | Required | App functionality, Fraud prevention, security, and compliance |
+| App activity → **Other actions** | тоглолтын дүн, rank оноо, зоос, тоглолтын статистик ("gameplay" энд хамаарна), шагналтай зарын бүртгэл | Yes | No | No | Required | App functionality, Fraud prevention, security, and compliance |
+| Financial info → **Purchase history** | худалдан авсан бүтээгдэхүүн, order ID, Google Play-ийн purchase token, огноо (`purchases` хүснэгт) | Yes | No | No | Optional (худалдан авсан тоглогчид л) | App functionality, Fraud prevention, security, and compliance |
+
+Үүн дээр дээрх **зарын хүснэгтийн** мөрүүдийг нэмнэ.
 
 **Зарлахгүй зүйлс ба шалтгаан:**
-- *Location:* апп байршил авдаггүй. Сервер IP хаягийг хүлээн авдаг ч байршил тодорхойлоход ашигладаггүй (Google: IP-ээр байршил тодорхойлбол Approximate location зарлана).
-- *Device or other IDs, App info and performance, Messages, Photos, Contacts гэх мэт:* цуглуулдаггүй.
+- *Location:* тоглоомын сервер IP хаягаар байршил тодорхойлдоггүй. Харин зарын SDK IP-ээр ерөнхий байршил тооцдог тул **Approximate location**-ийг зарын хүснэгтээр зарласан.
+- *Messages, Photos, Contacts, Precise location гэх мэт:* цуглуулдаггүй. (Device or other IDs, App info and performance-ийг зарын хүснэгтээр зарласан.)
 - *Shared:* **No**. Supabase бол service provider. Хоч, rank тэргүүлэгчдийн жагсаалтад харагдах нь тоглогч rank тоглолтод орж байгаа үйлдлээрээ хүлээх зүйл тул Google-ийн "хэрэглэгчийн үйлдлээр дамжуулах" онцгой тохиолдолд хамаарна. Нууцлалын бодлогод тодорхой бичсэн. Эргэлзвэл "Shared: Yes, App functionality" гэж илүү болгоомжтой хариулж болно.
 
-Энэ хүснэгт одоогийн кодыг (`src/js/20-cloud.js`, `supabase/migrations/`) үндэслэсэн. Зар, худалдан авалт, аналитик нэмэх бүрд Data safety болон нууцлалын бодлогыг **заавал** шинэчилнэ.
+Энэ хүснэгт одоогийн кодыг (`src/js/20-cloud.js`, `src/js/55-store.js`, `android/`, `supabase/migrations/`) үндэслэсэн. Шинэ SDK, аналитик нэмэх бүрд Data safety болон нууцлалын бодлогыг **заавал** шинэчилнэ.
 
 ### 2.10. Хаалттай туршилт (closed test)
 
@@ -312,6 +331,8 @@ https://appstoreconnect.apple.com → **Apps → + → New App**:
 | Офлайн | **Data Not Collected** |
 | Онлайн | **Contact Info → Email Address** (зөвхөн хэрэглэгч өөрөө нэмбэл): App Functionality, Linked to user, Tracking: No.<br>**Identifiers → User ID** (бүртгэлийн дугаар, хоч): App Functionality, Linked to user, Tracking: No.<br>**User Content → Gameplay Content** (тоглолтын дүн, rank): App Functionality, Linked to user, Tracking: No.<br>"Do you or your third-party partners use data for tracking?" → **No** |
 
+iOS хувилбарт зар, худалдан авалт нэмэгдэх үед (одоогоор iOS-д код байхгүй) App Privacy-д **Identifiers → Device ID** (Third-Party Advertising), **Purchases → Purchase History** (App Functionality), **Usage Data**, **Diagnostics**-ийг нэмж, IDFA ашиглах бол App Tracking Transparency зөвшөөрөл асууна. Худалдан авалт заавал In-App Purchase (StoreKit)-ээр (Guideline 3.1.1): `docs/MONETIZATION.md`, 11-р хэсэг.
+
 **App Review Information** (review-д зориулсан тэмдэглэл, англиар):
 
 ```text
@@ -360,6 +381,11 @@ Xcode → Archive → Upload → TestFlight-ээр туршина → App Store 
 - Шинэ апп AAB-аар (2021-08-аас): https://android-developers.googleblog.com/2021/06/the-future-of-android-app-bundles-is.html
 - Үнэгүй аппыг төлбөртэй болгох боломжгүй: https://support.google.com/googleplay/android-developer/answer/6334373
 - Target audience, Families бодлого: https://support.google.com/googleplay/android-developer/answer/9867159
+- Payments бодлого (дижитал бараанд Play Billing заавал): https://support.google.com/googleplay/android-developer/answer/9858738
+- AdMob SDK-ийн Data safety-д зарлах мэдээлэл: https://developers.google.cn/admob/android/play-data-disclosure
+- Advertising ID, AD_ID зөвшөөрөл: https://support.google.com/admob/answer/11402075
+- Худалдан авалт хийх боломжтой улс, «Rest of the world»: https://support.google.com/googleplay/android-developer/answer/138294, https://support.google.com/googleplay/android-developer/answer/12201481
+- Зар, худалдан авалтын бусад эх сурвалж: `docs/MONETIZATION.md`, 14-р хэсэг
 - Хуудасны текстийн хязгаар (нэр 30, богино 80, бүрэн 4000): https://support.google.com/googleplay/android-developer/answer/13393723
 - Icon, feature graphic, screenshot шаардлага: https://support.google.com/googleplay/android-developer/answer/9866151
 - Store listing-ийн хэлний кодууд (mn-MN): https://support.google.com/googleplay/android-developer/answer/9844778
