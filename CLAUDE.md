@@ -26,7 +26,8 @@ and the SQL `rank_title()`.
 JS file map: `10-profile` (saved profile, translate), `11-ranks` (daily reward, ranks, titles, badges),
 `20-cloud` (Supabase client, sync, outbox), `30-rivals` (AI levels, ranked bots), `31-profile-ui`
 (profile, ladder, leaderboard dialogs), `40-rules` (board, SRS, attacks, garbage), `41-ai`, `42-input`
-(actions), `43-handling` (DAS / ARR / soft drop for held buttons and keys), `50-match` (practice / bot /
+(actions), `43-handling` (DAS / ARR / soft drop for held buttons and keys), `44-coach` (admin-only coach
+for practice games: best placement search, hint drawing, admin sign-in; see `docs/ADMIN.md`), `50-match` (practice / bot /
 online / friend series flow, results), `51-online` (Realtime client, matchmaking, live 1v1), `52-friends`
 (friend rooms by code, unranked), `59-skins` (block skins registry, tile styles, previews), `60-render`,
 `61-loop`, `62-fx` (sparks, attack orbs, shake, progress bar, celebrations), `63-home` (home screen art),

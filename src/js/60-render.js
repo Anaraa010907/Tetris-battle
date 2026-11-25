@@ -39,12 +39,13 @@ function drawBoard(c,b,w,h,opts){
   // red X where the next piece spawns when the stack (plus incoming garbage) reaches the spawn zone
   let warn=-1;
   if(opts.warn){let top=b.cells.findIndex(r=>r.some(v=>v));if(top<0)top=H;if(top-pendingRows(b,false)<=3)warn=b.queue[0]}
-  const sig=L.paint+'|'+p.id+','+p.r+','+p.x+','+p.y+','+gy+','+warn;
+  const cp=opts.coach,sig=L.paint+'|'+p.id+','+p.r+','+p.x+','+p.y+','+gy+','+warn+(cp?'|'+cp.id+','+cp.r+','+cp.x+','+cp.y+','+cp.hold:'');
   if(boardSig.get(c)===sig)return;
   boardSig.set(c,sig);
   c.setTransform(2,0,0,2,0,0);
   c.drawImage(L.cv,0,0,w,h);                                 // opaque: background, grid and locked cells
   if(opts.ghost)for(let r=0;r<p.m.length;r++)for(let x=0;x<p.m[r].length;x++)if(p.m[r][x]&&gy+r>=0)tile(c,(p.x+x)*s,(gy+r)*s,s,p.id+1,true,skin);
+  if(cp)coachDraw(c,s,cp);                                    // admin coach: where the piece should go (44-coach.js)
   for(let r=0;r<p.m.length;r++)for(let x=0;x<p.m[r].length;x++)if(p.m[r][x]&&p.y+r>=0)tile(c,(p.x+x)*s,(p.y+r)*s,s,p.id+1,false,skin);
   if(warn>=0){
     const m=ROT[warn][0],x0=warn===1?4:3,y0=-m.findIndex(r=>r.some(v=>v));
@@ -97,7 +98,9 @@ function render(){
   if(boards.length&&(state==='play'||state==='pause'||state==='over')){
     const b=boards[0],o=boards[1],secs=Math.max(1,b.time);
     applySkinCss(skin);
-    drawBoard(ctx,b,280,560,{ghost:true,warn:true});
+    const cp=coachCurrent();
+    drawBoard(ctx,b,280,560,{ghost:true,warn:true,coach:cp});
+    coachFrame(cp);
     drawBoard(rctx,o,120,240,{});
     drawQueue(b);
     next('hold',b.hold,13,!b.canHold);
