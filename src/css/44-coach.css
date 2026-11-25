@@ -1,0 +1,9 @@
+/* admin coach (44-coach.js): the tip under the rival board (free space in the sidebar) and the hold hint */
+#coachTip{position:absolute;left:300px;right:0;bottom:2px;z-index:3;pointer-events:none;padding:6px 8px;border-radius:10px;
+  background:#050a18e6;border:1px solid #ffd16673;box-shadow:0 0 14px #ffd16626;color:#fff4d6;font-size:12px;font-weight:800;line-height:1.3}
+#coachTip b{display:block;color:#ffd166;font-size:9px;letter-spacing:1px;margin-bottom:1px}
+#coachTip span{display:block;margin-top:2px;color:#bfe9ff;font-weight:700;letter-spacing:.5px;word-spacing:1px}
+#holdBtn.coach-hold{border-color:#5ee6ff;box-shadow:0 0 0 2px #5ee6ff66,0 0 16px #5ee6ff55;animation:coachPulse 1s ease-in-out infinite alternate}
+@keyframes coachPulse{from{box-shadow:0 0 0 1px #5ee6ff44,0 0 8px #5ee6ff33}to{box-shadow:0 0 0 2px #5ee6ffaa,0 0 18px #5ee6ff77}}
+@media (prefers-reduced-motion:reduce){#holdBtn.coach-hold{animation:none}}
+.coachset{border-color:#ffd16680}

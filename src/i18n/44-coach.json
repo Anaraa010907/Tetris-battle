@@ -1,0 +1,30 @@
+{
+  "en": {
+    "adminTitle": "Admin sign-in",
+    "adminName": "Name",
+    "adminCode": "Code",
+    "adminEnter": "Sign in",
+    "adminWrong": "Wrong name or code.",
+    "adminWait": "Too many tries. Wait a minute and try again.",
+    "adminWelcome": "Admin unlocked. In practice games the coach now shows where each piece should go.",
+    "adminLeave": "Sign out of admin",
+    "coachSet": "Coach",
+    "coachNote": "The coach shows only in practice games, never in ranked, online or friend games.",
+    "coachBadge": "COACH",
+    "coachPlace": "Place it here"
+  },
+  "mn": {
+    "adminTitle": "Admin нэвтрэх",
+    "adminName": "Нэр",
+    "adminCode": "Код",
+    "adminEnter": "Нэвтрэх",
+    "adminWrong": "Нэр эсвэл код буруу байна.",
+    "adminWait": "Хэт олон удаа оролдлоо. Нэг минут хүлээгээд дахин оролдоорой.",
+    "adminWelcome": "Admin эрх нээгдлээ. Одоо бэлтгэл тоглолтод зөвлөгч блок бүрийг хаана тавихыг зааж өгнө.",
+    "adminLeave": "Admin-аас гарах",
+    "coachSet": "Зөвлөгч",
+    "coachNote": "Зөвлөгч зөвхөн бэлтгэл тоглолтод гарна. Rank, онлайн, найзтай тоглолтод гарахгүй.",
+    "coachBadge": "ЗӨВЛӨГЧ",
+    "coachPlace": "Энд тавь"
+  }
+}

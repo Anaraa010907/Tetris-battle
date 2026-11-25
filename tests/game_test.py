@@ -2,7 +2,7 @@
 """Browser tests for the built index.html (rules, touch controls, game flows, the offline and cloud paths).
 
     python3 tests/game_test.py                 all groups
-    python3 tests/game_test.py rules flows     only the named groups: rules, touch, flows, cloud, controls, friends, look, store
+    python3 tests/game_test.py rules flows     only the named groups: rules, touch, flows, cloud, controls, friends, look, store, coach
 
 Environment: CHROME (browser binary, default: Playwright's Chromium), TEST_OUT (screenshot folder).
 Exit code 1 when a check fails or the page throws. Checks read state through the game's own globals
@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGE = os.path.join(ROOT, 'index.html')
 OUT = os.path.join(os.environ.get('TEST_OUT') or tempfile.mkdtemp(prefix='neon-test-'), '')
 os.makedirs(OUT, exist_ok=True)
-GROUPS = [g for g in sys.argv[1:] if not g.startswith('-')] or ['rules', 'touch', 'flows', 'cloud', 'controls', 'friends', 'look', 'store']
+GROUPS = [g for g in sys.argv[1:] if not g.startswith('-')] or ['rules', 'touch', 'flows', 'cloud', 'controls', 'friends', 'look', 'store', 'coach']
 R, ERRS = {}, []
 
 
@@ -1162,6 +1162,102 @@ async def store(br):
     await wait(pg, "payState.claims.length===0", 3000)
     claims = [c[1] for c in srv['calls'] if c[0].endswith('claim_ad_reward')]
     check('the queued reward reaches the server', claims[-1] == {'p_placement': 'double_coins', 'p_ref': 'm-9', 'p_coins': 60} and await pg.evaluate("profile.coins") == 5330, claims[-1:])
+    await ctx.close()
+
+# ====================================================================== coach (admin only)
+# Runs the plan's own key sequence through the real move/rotate code, so a wrong path or a wrong spin shows up.
+FOLLOW = """(p)=>{const b=boards[0];if(p.hold)action('hold');
+  for(const m of p.moves){if(m==='L')move(b,-1,0);else if(m==='R')move(b,1,0);else if(m==='C')rotate(b,1);else if(m==='A')rotate(b,-1);else if(m==='D')while(move(b,0,1));}
+  const q=b.piece;return q.id===p.id&&q.r===p.r&&q.x===p.x&&q.y===p.y&&spinType(b)===p.spin}"""
+
+
+async def coach(br):
+    print('coach', flush=True)
+    ctx, pg = await new_page(br)
+    await pg.goto('file://' + PAGE)
+    v = await pg.evaluate("[sha256hex('abc'),sha256hex(''),adminCheck('Beatna97','Admin010907'),adminCheck(' Beatna97 ',' Admin010907 '),adminCheck('beatna97','Admin010907'),adminCheck('Beatna97','admin010907')]")
+    check('SHA-256 matches the standard test vectors',
+          v[0] == 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad' and v[1] == 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', v[:2])
+    check('admin name and code: only the exact pair works (spaces trimmed)', v[2:] == [True, True, False, False], v[2:])
+    src = await pg.evaluate("document.documentElement.outerHTML")
+    check('the admin code itself is not in the page', 'Admin010907' not in src and 'Beatna97' not in src)
+    # not an admin: no coach, no switch
+    await pg.evaluate("profile.fmt='single';startPractice()")
+    await pg.evaluate(FREEZE)
+    await asyncio.sleep(0.3)
+    check('no coach for a normal player', await pg.evaluate("coachCurrent()===null&&$('coachTip').hidden"))
+    await pg.evaluate("leaveMatch()")
+    await pg.click('#settings')
+    check('normal players see no coach switch', await pg.evaluate("!$('coachBtn')&&!$('adminOut')"))
+    # five taps on the Settings title open the sign-in
+    for _ in range(5):
+        await pg.click('#modal h2')
+    check('5 taps on the Settings title open the admin sign-in', await pg.evaluate("!!$('adminName')&&!!$('adminCode')&&$('adminCode').type==='password'"))
+    await pg.fill('#adminName', 'Beatna97')
+    await pg.fill('#adminCode', 'nope')
+    await pg.click('#adminGo')
+    check('a wrong code is refused', await pg.evaluate("!isAdmin()&&$('adminMsg').textContent===t('adminWrong')&&$('adminCode').value===''"))
+    await pg.fill('#adminCode', 'Admin010907')
+    await pg.click('#adminGo')
+    check('the right name and code unlock admin', await pg.evaluate("isAdmin()&&coachWanted()&&$('msgOk')!==null"))
+    await pg.click('#msgOk')
+    check('Settings now has the coach switch and sign-out', await pg.evaluate("!!$('coachBtn')&&!!$('adminOut')&&$('coachBtn').textContent.includes(t('on'))"))
+    await pg.click('#coachBtn')
+    check('the coach switch turns it off and on', await pg.evaluate("!coachWanted()&&$('coachBtn').textContent.includes(t('off'))"))
+    await pg.click('#coachBtn')
+    saved = await pg.evaluate("localStorage.getItem('neon-duel')||''")
+    check('the admin flag stays out of the saved (and synced) profile', 'admin' not in saved and 'coach' not in saved.lower())
+    await pg.evaluate("closeModal()")
+    # in a practice game
+    await pg.evaluate("profile.fmt='single';startPractice()")
+    await pg.evaluate(FREEZE)
+    await wait(pg, "state==='play'")
+    await asyncio.sleep(0.3)
+    check('practice: the coach tip shows', await pg.evaluate("!$('coachTip').hidden&&$('coachTip').textContent.includes(t('coachBadge'))"))
+    TSD = "b.cells[19]=[8,8,8,8,0,8,8,8,8,8];b.cells[18]=[8,8,8,0,0,0,8,8,8,8];b.cells[17][3]=8;b.hold=-1;b.canHold=true;place(b,2);"
+    p = await pg.evaluate("(()=>{const b=boards[0];%s;%s return coachPlan(b)})()" % (CLEAR, TSD))
+    check('it finds the T-spin double (spin, 2 lines, 4 attack)', p and p['spin'] == 2 and p['n'] == 2 and p['atk'] == 4 and not p['hold'], p)
+    check('its keys really lead there, spin included', await pg.evaluate("(%s)(coachPlan(boards[0]))" % FOLLOW))
+    t = await pg.evaluate("(()=>{const b=boards[0];hard(b);return [b.lines,b.attack]})()")
+    check('following it scores the T-spin double', t == [2, 4], t)
+    WELL = "for(let y=16;y<20;y++){b.cells[y]=Array(10).fill(8);b.cells[y][9]=0}b.cells[15][0]=8;"
+    p = await pg.evaluate("(()=>{const b=boards[0];%s;%s b.hold=-1;b.canHold=true;place(b,0);return coachPlan(b)})()" % (CLEAR, WELL))
+    check('an I piece goes down the well for a quad', p and p['n'] == 4 and p['id'] == 0, p)
+    p = await pg.evaluate("(()=>{const b=boards[0];%s;%s b.hold=0;b.canHold=true;place(b,3);return coachPlan(b)})()" % (CLEAR, WELL))
+    check('it says to hold when the held piece is better (I in hold, quad ready)', p and p['hold'] and p['id'] == 0 and p['n'] == 4, p)
+    await asyncio.sleep(0.2)
+    check('a hold plan lights up the hold button', await pg.evaluate("$('holdBtn').classList.contains('coach-hold')"))
+    check('...and following it gets the quad', await pg.evaluate("(%s)(coachPlan(boards[0]))" % FOLLOW) and await pg.evaluate("(()=>{const b=boards[0];hard(b);return b.lines})()") == 4)
+    await pg.screenshot(path=OUT + 'coach_play.png')
+    # replans when the player moves the piece somewhere else
+    r = await pg.evaluate("""(()=>{const b=boards[0];%s;b.hold=-1;b.canHold=true;place(b,6);coachCache.key='';const a=coachCurrent();
+      move(b,-1,0);move(b,-1,0);move(b,-1,0);const c=coachCurrent();return !!a&&!!c&&(%s)(c)})()""" % (CLEAR, FOLLOW.replace("if(p.hold)action('hold');", '')))
+    check('after the player moves, the keys start from where the piece is', r)
+    # the coach plays 120 pieces by itself: every path is right and it keeps attacking
+    r = await pg.evaluate("""(()=>{const b=boards[0];%s;b.pieces=0;let bad=0,half=0;const F=%s;
+      for(let i=0;i<120&&!b.dead;i++){const p=coachPlan(b);if(!p){bad++;hard(b);continue}if(p.moves.includes('F'))half++;if(!F(p))bad++;hard(b)}
+      return [bad,half,b.dead,b.attack,b.pieces]})()""" % (CLEAR, FOLLOW))
+    check('self-play: 120 pieces, every path right, no 180s, alive, attacking', r[0] == 0 and r[1] == 0 and not r[2] and r[3] >= 20, r)
+    # never outside practice
+    for mode in ('bot', 'online', 'friend'):
+        ok = await pg.evaluate("series.mode='%s';coachCurrent()===null" % mode)
+        await asyncio.sleep(0.15)
+        check('no coach in %s games' % mode, ok and await pg.evaluate("$('coachTip').hidden&&!$('holdBtn').classList.contains('coach-hold')"))
+    await pg.evaluate("series.mode='practice'")
+    # sign out
+    await pg.evaluate("leaveMatch()")
+    await pg.click('#settings')
+    await pg.click('#adminOut')
+    check('sign-out removes admin and the coach', await pg.evaluate("!isAdmin()&&!coachWanted()&&!$('coachBtn')"))
+    # five wrong codes lock the sign-in for a minute
+    await pg.evaluate("adminLogin(settings)")
+    for _ in range(5):
+        await pg.fill('#adminName', 'Beatna97')
+        await pg.fill('#adminCode', 'bad')
+        await pg.click('#adminGo')
+    await pg.fill('#adminCode', 'Admin010907')
+    await pg.click('#adminGo')
+    check('5 wrong codes lock the sign-in for a minute', await pg.evaluate("!isAdmin()&&$('adminMsg').textContent===t('adminWait')"))
     await ctx.close()
 
 

@@ -47,6 +47,7 @@ function settings(){
     }else profile.name=name;
     save();profileView();closeModal();
   };
+  adminSettings(settings);                                   // admin sign-in and the coach switch (44-coach.js)
 }
 $('settings').onclick=settings;
 // Delete the profile (offline) or the account and its server data (online). Opened from Settings and Profile.
